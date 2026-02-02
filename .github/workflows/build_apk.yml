@@ -26,25 +26,24 @@ jobs:
         with:
           channel: 'stable'
 
-      # 3. 安装 uv (神器来了，这里会自动处理 Python 版本)
+      # 3. 安装 uv (这就够了，因为有 uv.lock，它会自动识别，不需要额外补丁)
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
-      # 4. 安装依赖 (使用 uv sync 自动读取 pyproject.toml 或 uv.lock)
+      # 4. 安装依赖
       - name: Install dependencies
         run: uv sync
 
-      # 5. 打包 APK (直接用 uv run 调用 flet)
+      # 5. 打包 APK
       - name: Build APK
         run: |
           uv run flet build apk --verbose --project "Gonggong App"
-        # 注意：这里不需要手动指定 python 版本，uv 会根据你的配置自动管理
 
-      # 6. 上传结果
+      # 6. 上传结果 (保留这个全盘搜索配置，最保险)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: build/apk/app-release.apk
+          path: "**/*.apk"
