@@ -1,0 +1,40 @@
+[project]
+name = "gonggong"
+version = "0.1.0"
+description = "为外公定制的阿尔茨海默病回忆疗法应用"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "GongGong Developer", email = "1641782731@qq.com" }
+]
+dependencies = [
+    "flet>=0.80.5",
+    "flet-video>=0.80.5",
+]
+
+[dependency-groups]
+dev = [
+    "flet-cli>=0.80.5",
+    "flet-desktop>=0.80.5",
+    "flet-web>=0.80.5",
+]
+
+# --- Flet 配置核心部分 (New Style) ---
+[tool.flet]
+org = "com.gonggong"             # 对应以前的 organization
+product = "公公的留声机"           # 对应以前的 product_name
+company = "GongGong Family"      # 可选：公司/团队名
+copyright = "Copyright (C) 2026"
+
+# 指定 App 代码路径 (uv 生成的默认是 src)
+[tool.flet.app]
+path = "src"
+
+# --- 安卓打包专用配置 ---
+[tool.flet.android]
+split_per_abi = true  # true = 生成两个小包(v7a/v8a)，false = 生成一个通用大包
+
+# 安卓权限配置 (保持不变，Flet 0.80 依然沿用此格式)
+[tool.flet.android.permission]
+"android.permission.INTERNET" = true
+"android.permission.READ_EXTERNAL_STORAGE" = true
