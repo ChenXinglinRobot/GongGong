@@ -32,7 +32,7 @@ path = "src"
 
 # --- 安卓打包专用配置 ---
 [tool.flet.android]
-split_per_abi = true  # true = 生成两个小包(v7a/v8a)，false = 生成一个通用大包
+split_per_abi = false  # true = 生成两个小包(v7a/v8a)，false = 生成一个通用大包
 
 # 安卓权限配置 (保持不变，Flet 0.80 依然沿用此格式)
 [tool.flet.android.permission]

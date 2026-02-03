@@ -1,4 +1,4 @@
-name: Build Android APK (Official SRC Layout)
+name: Build Android APK (Official TOML Flow)
 
 on:
   push:
@@ -24,7 +24,6 @@ jobs:
         with:
           channel: 'stable'
 
-      # 1. ✅ 自动签署协议 (必带)
       - name: Accept Android Licenses
         run: |
           yes | flutter doctor --android-licenses
@@ -40,14 +39,16 @@ jobs:
       - name: Clean Build
         run: rm -rf build/ dist/
 
-      # 2. 📦 打包命令
-      # src 是位置参数 (positional argument)，对应 python_app_path
+      # 📦 官方标准打包命令
+      # 1. 没有任何位置参数 (默认当前目录)，这样它能读到 pyproject.toml
+      # 2. --project 保持原样防止乱码
+      # 3. 依赖会自动从 pyproject.toml 读取！
       - name: Build APK
         run: |
-          uv run flet build apk src --verbose --project "Gonggong" --module-name main
+          uv run flet build apk --verbose --project "Gonggong"
         
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-src
+          name: app-release-official
           path: "**/*.apk"
