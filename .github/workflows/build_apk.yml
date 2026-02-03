@@ -1,4 +1,4 @@
-name: Build Android APK (Explicit Path)
+name: Build Android APK (Official SRC Layout)
 
 on:
   push:
@@ -13,16 +13,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. 🔍 深度验尸：不仅看文件，还要看 pyproject.toml 有没有捣乱
-      - name: Debug Environment
-        run: |
-          echo "=== 📂 文件列表 (ls -R) ==="
-          ls -R
-          echo "=== 📄 检查 main.py 是否存在 ==="
-          if [ -f "main.py" ]; then echo "✅ main.py 存在于根目录"; else echo "❌ main.py 丢失!"; fi
-          echo "=== ⚙️ 检查 pyproject.toml 配置 ==="
-          cat pyproject.toml || echo "没有 pyproject.toml"
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -34,7 +24,7 @@ jobs:
         with:
           channel: 'stable'
 
-      # 2. ✅ 保持这个协议修复，它工作得很好！
+      # 1. ✅ 自动签署协议 (必带)
       - name: Accept Android Licenses
         run: |
           yes | flutter doctor --android-licenses
@@ -50,16 +40,14 @@ jobs:
       - name: Clean Build
         run: rm -rf build/ dist/
 
-      # 3. 📦 打包命令 (重大修改)
-      # 变化1: --project "Gonggong" (去掉了空格)
-      # 变化2: --module-name main (强制指定入口)
-      # 变化3: 最后加了个点 "." (明确指定当前目录)
+      # 2. 📦 打包命令
+      # src 是位置参数 (positional argument)，对应 python_app_path
       - name: Build APK
         run: |
-          uv run flet build apk --verbose --project "Gonggong" --module-name main .
+          uv run flet build apk src --verbose --project "Gonggong" --module-name main
         
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-final
+          name: app-release-src
           path: "**/*.apk"
