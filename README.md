@@ -22,10 +22,13 @@ For more details on running the app, refer to the [Getting Started Guide](https:
 
 ### Android
 
-```
-flet build apk -v
-```
+Build the APK using `uv` to ensure consistent dependencies:
 
+```bash
+# This command reads configuration from pyproject.toml
+uv run flet build apk -vv
+```
+The build configuration (permissions, split_abi, etc.) is managed in pyproject.toml
 For more details on building and signing `.apk` or `.aab`, refer to the [Android Packaging Guide](https://docs.flet.dev/publish/android/).
 
 ### iOS
@@ -158,7 +161,7 @@ A local Python application using `flet` and `flet-video` to deliver interactive 
 - **GUI Framework**: Flet (Latest version)
 - **Video Component**: `flet_video` (Separate Package)
 - **Strict Syntax Rules**:
-  - Entry point: `ft.run(main, assets_dir="assets")`
+  - Entry point: `ft.run(main, assets_dir="assets")`(Executed from `src/` context)
   - Navigation: Use `await page.push_route(route)` (Must be awaited)
   - Button content: `ft.FilledButton(content=ft.Text("Label"))` (No `text` param)
   - Styling: Use `ft.BorderRadius.all()`
@@ -181,24 +184,36 @@ flutter config --android-sdk "D:\Android\sdk"
 
 
 ```text
-/project_root
+Gonggong/                       # Project Root
 │
-├── /assets                     # Media root
-│   ├── /topic_family           # [Example Topic]
-│   │   ├── q1_0_query.mp4      # Question 1: Initial Ask
-│   │   ├── q1_1_repeat.mp4     # Question 1: Natural Repetition (Gentle)
-│   │   ├── q1_2_correct.mp4    # Question 1: Positive Feedback
-│   │   ├── q1_3_guide.mp4      # Question 1: Guidance/Correction
-│   │   ├── q2_0_query.mp4
-│   │   └── ...
-│   │
-│   └── /topic_music            # [Example Topic]
-│       └── ...
+├── .github/workflows/          # CI/CD Automation
+│   └── build_apk.yml           # GitHub Actions workflow for Android APK
 │
-├── data_loader.py              # Logic: Scans assets/, parses filenames, builds data objects.
-├── views.py                    # UI: Contains View classes (Menu, Player).
-├── main.py                     # Entry: App lifecycle and routing.
-└── requirements.txt
+├── pyproject.toml              # [CORE] Dependencies, Build Config & Permissions
+├── uv.lock                     # Dependency Lockfile (Do not edit manually)
+├── README.md                   # Project Documentation
+├── .gitignore                  # Git Ignore Rules
+│
+└── src/                        # Source Code Root
+    │
+    ├── assets/                 # Media Assets Directory (Auto-scanned)
+    │   │
+    │   ├── topic_family/       # [Topic Folder: Family Memories]
+    │   │   ├── q1_0_query.mp4     # Q1: Initial Question (State 0)
+    │   │   ├── q1_1_repeat.mp4    # Q1: Gentle Repetition (State 1)
+    │   │   ├── q1_2_correct.mp4   # Q1: Positive Feedback (State 2)
+    │   │   └── q1_3_guide.mp4     # Q1: Guidance/Comfort (State 3)
+    │   │
+    │   ├── topic_music/        # [Topic Folder: Old Songs]
+    │   │   └── ...
+    │   │
+    │   ├── icon.png            # App Icon
+    │   └── splash_android.png  # Splash Screen
+    │
+    ├── main.py                 # Entry Point: App lifecycle & Routing logic
+    ├── views.py                # UI Layer: Menu, Player, and Control Views
+    ├── data_loader.py          # Data Layer: Scans /assets and builds Topic objects
+    └── create_files.py         # Utility: Helper scripts for file generation
 ```
 ## 4. Naming Convention & Data Model
 The `data_loader.py` module must auto-discover content based on filenames found in the `assets/` directory.
