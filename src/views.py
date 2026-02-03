@@ -3,46 +3,63 @@ import flet_video as ftv
 from typing import List, Callable, Awaitable
 from data_loader import Topic, Question
 import pathlib
-import os
+import platform
 
 # ==========================================
 # 1. 辅助函数 (Android/Web 专用 - 保持相对路径)
 # ==========================================
+import flet as ft
+import flet_video as ftv
+from typing import List, Callable, Awaitable
+from data_loader import Topic, Question
+import pathlib
+import platform  # [新增] 用于检测操作系统
+
+# ==========================================
+# 1. 辅助函数 (智能跨平台路径处理)
+# ==========================================
 
 def _get_video_src(raw_path: str) -> str:
     """
-    [路径终极解决方案]
-    将路径转换为 Flet 播放器绝对可读的格式。
-    策略：优先使用绝对路径 (file:///) 以绕过 Flet 在 Windows 上解压 Temp 的潜在 Bug。
+    [智能分流]
+    - Windows: 强制使用绝对 URI (file:///D:/...), 绕过 Flet 服务器，直接读取磁盘，解决黑屏。
+    - Android/Web: 强制使用相对 Web 路径 (/topic/...), 走 Assets 资源通道。
     """
-    # 1. 获取当前脚本 (views.py) 所在的目录 -> src/
-    current_dir = pathlib.Path(__file__).parent.resolve()
+    # 1. 基础清洗：转为 Path 对象
+    path_obj = pathlib.Path(raw_path)
+    parts = path_obj.parts  # 例如 ('assets', 'topic_naming', 'q1.mp4')
     
-    # 2. 定位到项目根目录 (假设 src 的上一级是根目录)
-    # 如果 assets 在 src/assets，则使用 current_dir / "assets" ...
-    # 根据你的目录结构: src/assets/topic...
-    # raw_path 传进来是: "assets/topic_naming/..."
+    # 2. 检测当前系统
+    current_os = platform.system() # 'Windows', 'Linux' (Android底层也是Linux), 'Darwin' (Mac)
     
-    # 构造绝对路径: D:\...\src\assets\topic_naming\q1.mp4
-    # 注意：raw_path 已经是相对路径，直接拼接
-    abs_path = (current_dir / raw_path.replace("assets/", "", 1)).resolve() if raw_path.startswith("src/") else (current_dir / raw_path).resolve()
+    # [策略 A] Windows 桌面端 -> 绝对路径 (file:///)
+    # 注意：只有在非 Web 模式下才用绝对路径（这里假设你打包的是 Native 应用）
+    if current_os == "Windows":
+        # 获取当前脚本 (views.py) 的父目录 -> src/
+        current_dir = pathlib.Path(__file__).parent.resolve()
+        
+        # 构造完整物理路径: D:\...\src\assets\topic_naming\q1.mp4
+        # 逻辑：raw_path 可能是 "assets/topic..."，直接拼接到 current_dir 下
+        full_path = current_dir.joinpath(raw_path).resolve()
+        
+        if not full_path.exists():
+            print(f"❌ [Windows] 致命错误：文件不存在 -> {full_path}")
+            return ""
+            
+        # 转换为 URI: file:///D:/... (自动处理空格和中文)
+        print(f"✅ [Windows] 使用绝对物理路径: {full_path.name}")
+        return full_path.as_uri()
 
-    # 修正逻辑：你的 raw_path 是 "assets/topic..."，assets 在 src 下
-    # 所以完整路径应该是 current_dir / raw_path
-    full_path = current_dir.joinpath(raw_path).resolve()
-
-    # 3. 检查文件是否存在 (这一步能帮你挡掉99%的路径错误)
-    if not full_path.exists():
-        print(f"[错误] 视频文件未找到: {full_path}")
-        return "" # 或者返回一个默认错误视频
-
-    # 4. 生成播放器专用 src
-    # 对于本地文件，最稳妥的方式是使用 file:/// 协议 + 绝对路径
-    # 这样 Flet 不会尝试去 Temp 目录折腾，而是直接让播放器读取磁盘文件
-    video_src = full_path.as_uri() 
-    
-    # 结果示例: file:///D:/GongGong/src/assets/topic_naming/q1.mp4
-    return video_src
+    # [策略 B] Android / Web -> 相对路径 (Assets)
+    else:
+        # 剥离 "assets" 前缀，构造 /topic/...
+        if len(parts) > 1 and parts[0] == "assets":
+            clean_path = "/" + "/".join(parts[1:]) 
+        else:
+            clean_path = "/" + path_obj.as_posix().lstrip("/")
+            
+        print(f"✅ [Android/Web] 使用 Assets 路径: {clean_path}")
+        return clean_path
 
 def get_menu_view(page: ft.Page, topics: List[Topic], on_topic_click: Callable[[Topic], Awaitable[None]]):
     """主菜单：展示所有可用的话题"""
