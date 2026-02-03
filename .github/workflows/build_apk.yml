@@ -1,4 +1,4 @@
-name: Build Android APK (No Cache)
+name: Build Android APK (Official Doc Verified)
 
 on:
   push:
@@ -13,19 +13,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. 🔍 真相验证环节 (新增)
-      # 这一步会把 main.py 的内容打印到日志里。
-      # 如果日志里是新代码，那绝对不可能打出旧包。
-      - name: Check Main.py Content
+      # 1. 🔍 调试：让我看看你的 main.py 到底在哪
+      - name: Debug File System
         run: |
-          echo "Listing all files:"
-          ls -R
-          echo "--------------------------------"
-          echo "Reading main.py (First 20 lines):"
-          cat main.py | head -n 20
-          echo "--------------------------------"
-          echo "Checking if views.py exists:"
-          ls -l views.py
+          echo "=== 根目录文件列表 ==="
+          ls -F
+          if [ -f "main.py" ]; then
+            echo "✅ 成功检测到 main.py，位置正确！"
+          else
+            echo "❌ 根目录没找到 main.py！请检查是否还在 src 里？"
+            # 如果文件在 src，下面这行可以救命，但最好还是把文件搬出来
+            # ls -F src/ 
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -38,32 +37,31 @@ jobs:
         with:
           channel: 'stable'
 
-      # 2. 安装 uv (❌ 注意：我把 cache 关掉了)
+      # 2. ✅ 环境修复：这是文档里没写但必须做的！
+      - name: Accept Android Licenses
+        run: |
+          yes | flutter doctor --android-licenses
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          enable-cache: false  # <--- 强制关闭缓存，防止它偷懒用旧文件
+          enable-cache: false
 
-      # 3. 强制重新安装依赖
       - name: Install dependencies
-        run: |
-          uv sync --reinstall  # <--- 强制重装，不留任何旧痕迹
+        run: uv sync --reinstall
 
-      # 4. 清理旧构建垃圾 (防止 Flet 缓存)
-      - name: Clean Build Cache
-        run: |
-          rm -rf build/
-          rm -rf dist/
+      # 3. 🧹 清理缓存
+      - name: Clean Build
+        run: rm -rf build/ dist/
 
-      # 5. 打包 APK
+      # 4. 📦 打包：严格遵循官方文档默认行为
+      # 默认路径就是 "." (当前目录)，所以不需要加额外参数
       - name: Build APK
         run: |
-          # 加上 --verbose 看详细日志
           uv run flet build apk --verbose --project "Gonggong App"
         
-      # 6. 上传结果
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-fresh
+          name: app-release-verified
           path: "**/*.apk"
