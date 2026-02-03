@@ -1,4 +1,4 @@
-name: Build Android APK (uv)
+name: Build Android APK (No Cache)
 
 on:
   push:
@@ -13,37 +13,57 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. 配置 Java (Android 必须)
+      # 1. 🔍 真相验证环节 (新增)
+      # 这一步会把 main.py 的内容打印到日志里。
+      # 如果日志里是新代码，那绝对不可能打出旧包。
+      - name: Check Main.py Content
+        run: |
+          echo "Listing all files:"
+          ls -R
+          echo "--------------------------------"
+          echo "Reading main.py (First 20 lines):"
+          cat main.py | head -n 20
+          echo "--------------------------------"
+          echo "Checking if views.py exists:"
+          ls -l views.py
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 2. 配置 Flutter (Flet 依赖)
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      # 3. 安装 uv (这就够了，因为有 uv.lock，它会自动识别，不需要额外补丁)
+      # 2. 安装 uv (❌ 注意：我把 cache 关掉了)
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          enable-cache: true
+          enable-cache: false  # <--- 强制关闭缓存，防止它偷懒用旧文件
 
-      # 4. 安装依赖
+      # 3. 强制重新安装依赖
       - name: Install dependencies
-        run: uv sync
+        run: |
+          uv sync --reinstall  # <--- 强制重装，不留任何旧痕迹
+
+      # 4. 清理旧构建垃圾 (防止 Flet 缓存)
+      - name: Clean Build Cache
+        run: |
+          rm -rf build/
+          rm -rf dist/
 
       # 5. 打包 APK
       - name: Build APK
         run: |
+          # 加上 --verbose 看详细日志
           uv run flet build apk --verbose --project "Gonggong App"
-
-      # 6. 上传结果 (保留这个全盘搜索配置，最保险)
+        
+      # 6. 上传结果
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-release-fresh
           path: "**/*.apk"

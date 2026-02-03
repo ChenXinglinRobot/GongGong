@@ -1,0 +1,194 @@
+BEGIN
+你好，我正在用 Python 开发一个辅助阿尔茨海默症老人的**“怀旧疗法”安卓应用**。使用的是最新版本的 Flet (0.80.5+)。
+
+【重要背景】 这个应用由老人的监护人操作。应用播放一段“名人”提问的视频，老人回答后，监护人根据老人的反应点击屏幕下方的按钮，应用接着播放对应的反馈视频。
+
+设计风格：不要使用 Galgame 或游戏风格。请使用标准的、干净的 Android Material Design 风格。
+
+布局要求：垂直布局 (Column)。
+
+上半部分 (Flex=2)：视频播放区域（保持简洁，无干扰）。
+
+下半部分 (Flex=1)：监护人控制面板（包含大的操作按钮）。
+
+【核心指令 - 必须遵守】 由于 Flet 版本更新极快（0.80.5+），你训练数据中的代码已过期（例如旧版的 Video 控件写法会报错）。 请你完全忽略你关于 Flet 的旧知识，严格、只根据我下面提供的【参考文档】 来编写代码。
+
+【应用逻辑需求】 请写一个完整的 main.py，逻辑如下：
+
+资源路径：假设视频文件都在 assets 文件夹下。
+
+状态机逻辑：
+
+场景 1 (提问): 自动播放 question_1.mp4。
+
+显示按钮：[“外公回答对了”] -> 跳转场景 2；[“外公忘了”] -> 跳转场景 3。
+
+场景 2 (正向反馈): 播放 correct_reaction.mp4。
+
+显示按钮：[“下一题”] -> 重置回场景 1。
+
+场景 3 (引导反馈): 播放 guide_reaction.mp4。
+
+显示按钮：[“重试”] -> 重置回场景 1。
+
+技术细节：
+
+请确保视频切换时流畅，根据文档使用正确的方法（是替换 playlist，还是替换 src，还是替换整个 Control，请依据文档决定）。
+
+按钮请使用 ft.ElevatedButton 或 ft.FilledButton，并设置适当的大小以便手指点击。
+
+【参考文档 - 请仔细阅读以下 API 说明】
+
+====== (在此处粘贴 Flet 0.80.5+ 的 Video, Page, Button, Column 等相关文档) ======
+
+====== (文档结束) ======
+
+请根据以上文档和需求，给出完整的 main.py 代码。
+
+XIUGAI1
+你好，我正在用 Python 开发一个辅助阿尔茨海默症老人的**“怀旧疗法”安卓应用**。使用的是最新版本的 Flet (0.80.5+)。
+
+【重要背景】 这个应用由老人的监护人操作。应用播放一段“名人”提问的视频，老人回答后，监护人根据老人的反应点击屏幕下方的按钮，应用接着播放对应的反馈视频。
+
+设计风格：
+
+严禁使用 Galgame 或游戏风格。
+
+请使用标准的、干净的 Android Material Design 风格。
+
+按钮必须显眼、巨大，方便点击。
+
+布局要求 (垂直布局)：
+
+最外层：必须包裹 ft.SafeArea，防止被手机刘海或导航条遮挡。
+
+上半部分 (Flex=2)：视频播放区域（保持简洁，无干扰）。
+
+下半部分 (Flex=1)：监护人控制面板。这是一个带有背景色和圆角的容器，内部放置操作按钮。
+
+【核心指令 - 必须遵守】 由于 Flet 版本更新极快（0.80.5+），你训练数据中的代码已过期。请你完全忽略你关于 Flet 的旧知识，严格、只根据我下面提供的【参考文档】来编写代码。如果文档里没提到的属性，不要瞎编。
+
+【应用逻辑需求】 请写一个完整的 main.py，逻辑如下：
+
+资源准备： 假设视频文件都在 assets 文件夹下。请预先构建一个包含 3 个视频的播放列表 (Playlist)：
+
+Index 0: question_1.mp4 (提问)
+
+Index 1: correct_reaction.mp4 (正确反馈)
+
+Index 2: guide_reaction.mp4 (引导/错误反馈)
+
+状态机与交互逻辑：
+
+初始化：自动播放 Index 0。
+
+场景 1 (提问中)：
+
+显示两个大按钮：[“回答正确”] 和 [“忘记了”]。
+
+点击 [“回答正确”] -> await video.jump_to(1)。
+
+点击 [“忘记了”] -> await video.jump_to(2)。
+
+场景 2 (播放正确反馈中)：
+
+显示一个大按钮：[“下一题”]。
+
+点击 [“下一题”] -> await video.jump_to(0) (重置回提问)。
+
+场景 3 (播放引导反馈中)：
+
+显示一个大按钮：[“重试”]。
+
+点击 [“重试”] -> await video.jump_to(0)。
+
+技术细节：
+
+视频切换：必须使用 await video.jump_to(index)，严禁重新创建 Video 控件或修改 src。
+
+按钮：使用 ft.FilledButton。为了让按钮够大，请在 Row 中把按钮放入 Expanded 或设置 width。
+
+UI 刷新：使用变量保存按钮对象（如 btn_correct, btn_wrong），通过修改 .visible = True/False 并调用 page.update() 来切换按钮显示，不要反复 add/remove 控件。
+
+
+
+
+XIUGAI2
+你好，我正在用 Python 开发一个辅助阿尔茨海默症老人的**“怀旧疗法”安卓应用**。使用的是最新版本的 Flet 和 flet-video 库。
+
+【环境与库说明】
+
+已安装 flet 和 flet-video。
+
+严格遵循我提供的 flet-video 文档（见下文）。
+
+注意：Flet 0.80+ 版本有重大更新，请务必遵守以下语法修正：
+
+按钮修正：ft.FilledButton 不再支持 text="xxx" 参数。必须使用 content=ft.Text("xxx")。
+
+启动修正：不再使用 ft.app(...)。必须使用 ft.run(target=main, assets_dir="assets")。
+
+圆角修正：使用 ft.BorderRadius.all(value) 而非 ft.border_radius.all。
+
+【应用逻辑需求】
+
+资源准备：构建一个包含 3 个视频的播放列表 (playlist)，路径使用绝对引用（如 "/question_1.mp4"）：
+
+Index 0: question_1.mp4 (提问)
+
+Index 1: correct_reaction.mp4 (正确反馈)
+
+Index 2: guide_reaction.mp4 (引导/错误反馈)
+
+控件初始化：
+
+使用 ftv.Video 控件（来自 import flet_video as ftv）。
+
+属性：playlist_mode=ftv.PlaylistMode.NONE, autoplay=True, aspect_ratio=16/9。
+
+交互逻辑（状态机）：
+
+场景 1 (提问中)：显示 [回答正确] 和 [忘记了] 按钮。
+
+点击 [回答正确] -> await video.jump_to(1) -> 切换按钮显示。
+
+点击 [忘记了] -> await video.jump_to(2) -> 切换按钮显示。
+
+场景 2 (正确反馈)：显示 [下一题] 按钮。
+
+点击 [下一题] -> await video.jump_to(0) -> 切换回场景 1。
+
+场景 3 (引导反馈)：显示 [重试] 按钮。
+
+点击 [重试] -> await video.jump_to(0) -> 切换回场景 1。
+
+技术约束：
+
+按钮点击事件必须绑定 async 函数，严禁使用 lambda（如 on_click=handle_func）。
+
+布局：使用 ft.SafeArea 包裹 ft.Column。
+
+【参考文档 - flet-video】
+
+引入：import flet_video as ftv
+
+定义媒体：ftv.VideoMedia("https://..." 或 "/local_file.mp4")
+
+定义控件：ftv.Video(playlist=...)
+
+跳转方法：await video.jump_to(index)
+
+请给出完整的 main.py 代码。
+
+
+Layout (布局): Column, Row, Container, SafeArea (必须包含 SafeArea)
+
+Controls (控件): ElevatedButton (重点看 style 部分)
+
+
+App Lifecycle: ft.app (重点看 assets_dir 参数)
+
+
+
+
+主题颜色、动效、背景图片、全面屏手势、图标、打包apk时候，真正的视频放在那那里
