@@ -2,6 +2,8 @@ import flet as ft
 import flet_video as ftv
 from typing import List, Callable, Awaitable
 from data_loader import Topic, Question
+import pathlib
+import os
 
 # ==========================================
 # 1. 辅助函数 (Android/Web 专用 - 保持相对路径)
@@ -9,18 +11,38 @@ from data_loader import Topic, Question
 
 def _get_video_src(raw_path: str) -> str:
     """
-    [Android/Web 专用]
-    直接返回相对路径，不要转换为绝对路径。
-    例如: "assets/topic/video.mp4" -> "/topic/video.mp4"
+    [路径终极解决方案]
+    将路径转换为 Flet 播放器绝对可读的格式。
+    策略：优先使用绝对路径 (file:///) 以绕过 Flet 在 Windows 上解压 Temp 的潜在 Bug。
     """
-    clean_path = raw_path.replace("\\", "/")
-    if clean_path.startswith("assets/"):
-        return "/" + clean_path.split("/", 1)[1]
-    return "/" + clean_path if not clean_path.startswith("/") else clean_path
+    # 1. 获取当前脚本 (views.py) 所在的目录 -> src/
+    current_dir = pathlib.Path(__file__).parent.resolve()
+    
+    # 2. 定位到项目根目录 (假设 src 的上一级是根目录)
+    # 如果 assets 在 src/assets，则使用 current_dir / "assets" ...
+    # 根据你的目录结构: src/assets/topic...
+    # raw_path 传进来是: "assets/topic_naming/..."
+    
+    # 构造绝对路径: D:\...\src\assets\topic_naming\q1.mp4
+    # 注意：raw_path 已经是相对路径，直接拼接
+    abs_path = (current_dir / raw_path.replace("assets/", "", 1)).resolve() if raw_path.startswith("src/") else (current_dir / raw_path).resolve()
 
-# ==========================================
-# 2. 菜单视图 (Menu View)
-# ==========================================
+    # 修正逻辑：你的 raw_path 是 "assets/topic..."，assets 在 src 下
+    # 所以完整路径应该是 current_dir / raw_path
+    full_path = current_dir.joinpath(raw_path).resolve()
+
+    # 3. 检查文件是否存在 (这一步能帮你挡掉99%的路径错误)
+    if not full_path.exists():
+        print(f"[错误] 视频文件未找到: {full_path}")
+        return "" # 或者返回一个默认错误视频
+
+    # 4. 生成播放器专用 src
+    # 对于本地文件，最稳妥的方式是使用 file:/// 协议 + 绝对路径
+    # 这样 Flet 不会尝试去 Temp 目录折腾，而是直接让播放器读取磁盘文件
+    video_src = full_path.as_uri() 
+    
+    # 结果示例: file:///D:/GongGong/src/assets/topic_naming/q1.mp4
+    return video_src
 
 def get_menu_view(page: ft.Page, topics: List[Topic], on_topic_click: Callable[[Topic], Awaitable[None]]):
     """主菜单：展示所有可用的话题"""

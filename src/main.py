@@ -61,7 +61,7 @@ async def main(page: ft.Page):
 if __name__ == "__main__":
     ft.run(main, assets_dir="assets")
 
-# #     ft.run(main, assets_dir="assets")
+#     ft.run(main, assets_dir="assets")
 # if __name__ == "__main__":
 #     # 这一行会让程序不弹窗，而是自动打开你的默认浏览器（Chrome/Edge）
 #     ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
