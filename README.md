@@ -325,6 +325,36 @@ ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
 ### [已解决] Windows 用户名空格问题
 - **症状**: 路径 `C:\Users\Chen Xinglin\...` 被截断或转义错误。
 - **修复方案**: 同样通过 `pathlib.resolve()` 获取绝对路径并转换为 URI 解决。
+
+## 📝 更新日志
+
+### 2026-02-04: UI 优化与视频播放器改进
+- **全局窗口设置**:
+  - 移除页面内边距 (`page.padding = 0`)，实现全沉浸式体验
+  - 设置背景色为黑色 (`page.bgcolor = ft.Colors.BLACK`)，提供影院式边框
+  - 确保不创建默认的系统应用栏
+- **菜单视图文本更新**:
+  - 将副标题文本格式从“包含 {count} 个环节”改为“包含 {count} 个问题”
+- **播放器视图重构**:
+  - 使用三层 Stack 架构实现沉浸式覆盖：
+    1. **底层**: 视频层（`ft.Container` + `ftv.Video`）
+    2. **中层**: 手势检测层（`ft.GestureDetector`，支持单击切换覆盖层、双击暂停/播放）
+    3. **顶层**: UI 覆盖层（`ft.Container`，包含自定义 AppBar 和底部控制栏）
+  - 修复菜单隐藏逻辑：为透明覆盖层添加 `on_click=toggle_overlay`，确保点击空白区域也能关闭菜单
+  - 修复双击暂停功能：使用官方 `play_or_pause()` API
+  - 修复 Android 视频质量和宽高比：
+    - 移除无效的 `aspect_ratio` 属性
+    - 设置 `fit=ft.BoxFit.CONTAIN` 确保 16:9 视频适配屏幕（带黑边，无变形）
+    - 将 `filter_quality` 从 `HIGH` 改为 `MEDIUM`，提升 Android 设备清晰度
+  - 修复 SafeArea 放置：
+    - 从根 View 控件中移除 `ft.SafeArea`
+    - 仅在 UI 覆盖层内部添加 `ft.SafeArea`
+    - 视频堆叠层现在可以触及物理屏幕边缘
+  - 清理调试文本和多余容器
+- **代码优化**:
+  - 修复变量引用顺序错误（`toggle_overlay` 在赋值前被引用）
+  - 所有函数添加中文注释
+
 ---
 
 ## 📚 参考资源
