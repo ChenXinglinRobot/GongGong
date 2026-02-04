@@ -7,32 +7,49 @@
 本项目是一款基于 Flet 框架开发的本地化 Python 应用，通过视频互动的方式为阿尔茨海默症患者提供回忆疗法。系统采用模块化话题选择机制，每个话题包含多个问题，每个问题通过 4 个阶段的视频进行交互式引导（提问 → 重复 → 反馈 → 引导）。
 
 **当前状态**:
-- ✅ **桌面端 (Windows)**: 视频播放黑屏问题已修复（已验证）。
-- ⏳ **移动端 (Android)**: 跨平台路径适配逻辑已合并，等待 CI 构建与真机验证。
+- ✅ **桌面端 (Windows)**: 运行完美，视频播放正常。
+- ✅ **移动端 (Android)**: **黑屏问题彻底修复**。资源打包与路径加载逻辑已验证通过。
 - ✅ **系统兼容性**: 已解决 Windows 用户名包含空格导致的路径转义错误。
 2026-02-03 更新: 修复了 Windows 平台下的视频播放黑屏问题（通过绝对路径引用绕过解码器限制）。Android 端的路径适配代码已同步更新，正在进行构建测试。
+2026-02-04 更新: 安卓端的路径也改成了强制路径，视频正常播放
 ---
 
-## 🛠 技术栈
+## 🛠 技术栈与核心架构
 
-### 🛠 最近更新：混合路径加载策略 (v0.80+ Hotfix)
+### 🛠 关键架构更新：全平台统一绝对路径策略 (v0.9.0 Stable)
 
-针对 Windows 客户端出现的视频黑屏问题，项目重构了资源加载层 (`views.py`)，实施了以下分流策略：
+针对 Android 和 Windows 端的视频黑屏问题，经历了从“Web 相对路径”到“混合策略”再到“全平台绝对路径”的迭代，最终确立了以下方案：
 
-1.  **Windows 环境**: 
-    - 引入 `platform` 模块进行系统识别。
-    - 强制使用 **绝对路径 URI (`file:///`)** 加载视频。
-    - **目的**: 绕过 Flet 内部 Web Server 对临时目录的解压机制，解决因路径转义（如用户名含空格）导致的资源加载失败。
+#### ❌ 之前的错误认知 (已废弃)
+- **误区 1**: 认为 Android 端的 Flet 是纯 Web 容器，必须使用 `/topic/...` 或 `/assets/...` 这样的 HTTP 风格相对路径。
+  - **后果**: 播放器无法在本地文件系统中找到资源，导致黑屏。
+- **误区 2**: 认为 `pyproject.toml` 不需要显式指定 `assets_dir`，只要代码里写了就行。
+  - **后果**: GitHub Actions 构建出的 APK 包里只有代码，**没有视频文件**（资源丢失）。
 
-2.  **非 Windows 环境 (Android/Linux)**:
-    - 保留 **相对 Web 路径 (`/topic/...`)** 策略。
-    - **目的**: 维持与 Android APK `AssetManager` 的兼容性（代码逻辑已部署）。
+#### ✅ 当前的正确方案 (Unified Absolute Path Strategy)
+Flet 在 Android 上本质是运行在本地的 Python 环境，资源被解压到了手机的物理存储中。因此，我们采用**“邻居查找法”**：
+
+1.  **物理路径定位**: 
+    - 不依赖 Flet 的资源映射机制，而是利用 `pathlib` 获取 `views.py` 脚本的绝对路径。
+    - 基于脚本位置，寻找同级目录下的 `assets` 文件夹。
+    
+2.  **统一 URI 协议**:
+    - 全平台（Windows/Android）统一将路径转换为 **`file:///`** 协议。
+    - Android 的 ExoPlayer 完美支持此协议读取本地私有目录文件。
+
+**核心代码逻辑 (`views.py`)**:
+```python
+# 获取脚本所在目录的父级，拼接资源路径，并转为 file:/// URI
+current_dir = pathlib.Path(__file__).parent.resolve()
+full_path = current_dir.joinpath(raw_path).resolve()
+return full_path.as_uri()
+```
 
 ### 核心依赖
 - **Python**: 3.10+
 - **GUI 框架**: Flet 0.80.5+（基于 2026 年最新版本）
 - **视频组件**: flet-video 0.80.5+
-- **包管理**: uv（推荐）
+- **构建工具**: uv (依赖管理) + GitHub Actions (CI/CD)
 
 ### 关键语法规范（基于 Flet 0.80+）
 
@@ -262,6 +279,8 @@ company = "GongGong Family"     # 公司/团队名
 
 [tool.flet.app]
 path = "src"                    # 源码路径
+# 🔥 关键修正：必须指定 assets 的物理路径，否则视频不会被打入 APK 包！
+assets_dir = "src/assets"
 
 [tool.flet.android]
 split_per_abi = false           # false = 通用包，true = 按架构分包
@@ -292,6 +311,20 @@ split_per_abi = false           # false = 通用包，true = 按架构分包
 ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
 ```
 
+## 📝 问题修复记录
+
+### [已解决] 视频播放黑屏 (Android & Windows)
+- **症状**: 界面UI加载正常，但视频区域黑屏，无报错或报 `No such file`。
+- **根本原因**: 
+  1. **资源丢失**: `pyproject.toml` 缺少 `assets_dir` 配置，导致视频未打包进 APK。
+  2. **路径错误**: 代码使用了 Web 相对路径，而 Android ExoPlayer 需要本地绝对路径 (`file:///`)。
+- **修复方案**: 
+  1. 修正构建配置，确保资源打入包内。
+  2. 重构 `views.py`，使用 `pathlib` 动态计算绝对物理路径。
+
+### [已解决] Windows 用户名空格问题
+- **症状**: 路径 `C:\Users\Chen Xinglin\...` 被截断或转义错误。
+- **修复方案**: 同样通过 `pathlib.resolve()` 获取绝对路径并转换为 URI 解决。
 ---
 
 ## 📚 参考资源
