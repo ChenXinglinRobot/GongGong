@@ -29,6 +29,7 @@ copyright = "Copyright (C) 2026"
 # 指定 App 代码路径 (uv 生成的默认是 src)
 [tool.flet.app]
 path = "src"
+assets_dir = "src/assets"  # <--- 加上这一行！告诉它：资源在这里！
 
 # --- 安卓打包专用配置 ---
 [tool.flet.android]
