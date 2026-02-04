@@ -173,6 +173,19 @@ def get_player_view(page: ft.Page, topic: Topic):
     # UI 覆盖层可见性状态
     overlay_visible = False
     
+    # --- 手势处理函数 ---
+    
+    async def toggle_overlay(e):
+        nonlocal overlay_visible
+        overlay_visible = not overlay_visible
+        overlay_container.visible = overlay_visible
+        page.update()
+    
+    async def toggle_play_pause(e):
+        # 切换视频播放/暂停（使用官方 API）
+        if video_container.content:
+            await video_container.content.play_or_pause()
+    
     # --- Layer 3: UI 覆盖层 (Top) ---
     # 先创建返回按钮，以便绑定事件
     back_button = ft.IconButton(
@@ -187,45 +200,48 @@ def get_player_view(page: ft.Page, topic: Topic):
         right=0,
         bottom=0,
         visible=False,  # 初始隐藏
-        content=ft.Column(
-            [
-                # A. 顶部自定义 AppBar
-                ft.Container(
-                    bgcolor="#80000000",  # 半透明黑色
-                    padding=ft.padding.only(top=30, left=15, right=15, bottom=10),
-                    content=ft.Row(
-                        [
-                            # 返回按钮
-                            back_button,
-                            # 信息列
-                            ft.Column(
-                                [
-                                    ft.Text(
-                                        topic.name,
-                                        color=ft.Colors.WHITE,
-                                        size=16,
-                                        weight=ft.FontWeight.BOLD
-                                    ),
-                                    title_text
-                                ],
-                                spacing=2
-                            ),
-                            # 占位器
-                            ft.Container(expand=True)
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+        on_click=toggle_overlay,
+        content=ft.SafeArea(
+            content=ft.Column(
+                [
+                    # A. 顶部自定义 AppBar
+                    ft.Container(
+                        bgcolor="#80000000",  # 半透明黑色
+                        padding=ft.padding.only(top=30, left=15, right=15, bottom=10),
+                        content=ft.Row(
+                            [
+                                # 返回按钮
+                                back_button,
+                                # 信息列
+                                ft.Column(
+                                    [
+                                        ft.Text(
+                                            topic.name,
+                                            color=ft.Colors.WHITE,
+                                            size=16,
+                                            weight=ft.FontWeight.BOLD
+                                        ),
+                                        title_text
+                                    ],
+                                    spacing=2
+                                ),
+                                # 占位器
+                                ft.Container(expand=True)
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                        )
+                    ),
+                    # 占位器
+                    ft.Container(expand=True),
+                    # B. 底部控制栏
+                    ft.Container(
+                        padding=20,
+                        content=controls_row
                     )
-                ),
-                # 占位器
-                ft.Container(expand=True),
-                # B. 底部控制栏
-                ft.Container(
-                    padding=20,
-                    content=controls_row
-                )
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            expand=True
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                expand=True
+            )
         )
     )
     
@@ -275,8 +291,8 @@ def get_player_view(page: ft.Page, topic: Topic):
                 autoplay=True,
                 show_controls=False,
                 playlist=[ftv.VideoMedia(src)],
-                aspect_ratio=16/9,
-                filter_quality=ft.FilterQuality.HIGH,
+                fit=ft.BoxFit.CONTAIN,
+                filter_quality=ft.FilterQuality.MEDIUM,
                 key=f"video_{q.id}_{state_id}_{current_q_index}"
             )
             
@@ -299,21 +315,6 @@ def get_player_view(page: ft.Page, topic: Topic):
             controls_row.controls = [btn_retry, btn_skip]
 
         page.update()
-
-    # --- 手势处理函数 ---
-    
-    async def toggle_overlay(e):
-        nonlocal overlay_visible
-        overlay_visible = not overlay_visible
-        overlay_container.visible = overlay_visible
-        page.update()
-    
-    async def toggle_play_pause(e):
-        # 切换视频播放/暂停（可选功能）
-        if video_container.content and isinstance(video_container.content, ftv.Video):
-            # 这里需要访问 Video 组件的播放状态，但 flet_video API 可能需要检查
-            # 暂时只打印日志
-            print("Double tap: Toggle play/pause (功能待实现)")
     
     # --- Handlers ---
     
@@ -369,8 +370,8 @@ def get_player_view(page: ft.Page, topic: Topic):
                 autoplay=True,
                 show_controls=False,
                 playlist=[ftv.VideoMedia(init_src)],
-                aspect_ratio=16/9,
-                filter_quality=ft.FilterQuality.HIGH
+                fit=ft.BoxFit.CONTAIN,
+                filter_quality=ft.FilterQuality.MEDIUM
             )
         
         controls_row.controls = [btn_repeat, btn_forget, btn_correct]
@@ -378,10 +379,5 @@ def get_player_view(page: ft.Page, topic: Topic):
     return ft.View(
         route=f"/play/{topic.id}",
         padding=0,
-        controls=[
-            ft.SafeArea(
-                content=stack_layers,
-                expand=True
-            )
-        ]
+        controls=[stack_layers]
     )
