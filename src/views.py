@@ -2,25 +2,27 @@ import flet as ft
 import flet_video as ftv
 from typing import List, Callable, Awaitable
 from data_loader import Topic, Question
+import pathlib
+import platform
+import os
 
 # ==========================================
-# 1. 辅助函数 (Android/Web 专用 - 保持相对路径)
+# 1. 辅助函数 (智能跨平台路径处理)
 # ==========================================
 
 def _get_video_src(raw_path: str) -> str:
     """
-    [Android/Web 专用]
-    直接返回相对路径，不要转换为绝对路径。
-    例如: "assets/topic/video.mp4" -> "/topic/video.mp4"
+    全平台通用的绝对物理路径策略
+    无论在 Windows 还是 Android，直接读取脚本所在目录的物理文件
     """
-    clean_path = raw_path.replace("\\", "/")
-    if clean_path.startswith("assets/"):
-        return "/" + clean_path.split("/", 1)[1]
-    return "/" + clean_path if not clean_path.startswith("/") else clean_path
-
-# ==========================================
-# 2. 菜单视图 (Menu View)
-# ==========================================
+    # 获取当前脚本 (views.py) 的父目录作为基准目录
+    current_dir = pathlib.Path(__file__).parent.resolve()
+    # 使用 current_dir.joinpath(raw_path) 拼接出文件的完整绝对路径
+    full_path = current_dir.joinpath(raw_path).resolve()
+    # 打印 DEBUG 日志到控制台
+    print(f"DEBUG: Target={full_path} | Exists={full_path.exists()}")
+    # 返回 URI 格式的路径 (file:///...)，这对 Android 的 ExoPlayer 最安全
+    return full_path.as_uri()
 
 def get_menu_view(page: ft.Page, topics: List[Topic], on_topic_click: Callable[[Topic], Awaitable[None]]):
     """主菜单：展示所有可用的话题"""
@@ -95,6 +97,9 @@ def get_player_view(page: ft.Page, topic: Topic):
     total_questions = len(questions)
 
     # --- UI Controls Definition ---
+    
+    # 新增调试控件
+    debug_text = ft.Text(value="初始化...", color=ft.Colors.RED, size=12, selectable=True)
     
     # [关键修改] 定义一个容器，而不是直接定义 Video
     # 稍后我们将把 Video 组件动态塞入这个容器
@@ -181,7 +186,17 @@ def get_player_view(page: ft.Page, topic: Topic):
         
         if raw_path:
             src = _get_video_src(raw_path)
-            print(f"Switching video to: {src}") 
+            print(f"Switching video to: {src}")
+            
+            # 更新调试信息：将 URI 还原为普通路径，检测文件是否存在
+            # 去掉 file:/// 前缀
+            if src.startswith('file:///'):
+                file_path = src[8:]  # 移除 'file:///'
+            else:
+                file_path = src
+            exists = os.path.exists(file_path)
+            debug_text.value = f"文件存在: {exists}\n路径: {file_path}"
+            debug_text.update()
             
             # [关键修复] 暴力重绘策略
             # 不更新旧 Video，而是创建一个全新的 Video 组件
@@ -287,6 +302,14 @@ def get_player_view(page: ft.Page, topic: Topic):
                                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                             ),
                             padding=10
+                        ),
+                        # 调试信息容器（黄色背景）
+                        ft.Container(
+                            content=debug_text,
+                            bgcolor=ft.Colors.YELLOW_100,
+                            padding=5,
+                            border_radius=5,
+                            margin=ft.margin.only(bottom=5)
                         ),
                         # [Critical] 这里放置的是 video_container，不是 video_player
                         video_container,

@@ -1,338 +1,362 @@
-# Gonggong app
+# 公公的留声机 (GongGong)
 
-## Run the app
+> 为阿尔茨海默症患者定制的互动式回忆疗法应用
 
-### uv
+## 📌 项目简介
 
-Run as a desktop app:
+本项目是一款基于 Flet 框架开发的本地化 Python 应用，通过视频互动的方式为阿尔茨海默症患者提供回忆疗法。系统采用模块化话题选择机制，每个话题包含多个问题，每个问题通过 4 个阶段的视频进行交互式引导（提问 → 重复 → 反馈 → 引导）。
 
-```
-uv run flet run
-```
+**当前状态**:
+- ✅ **桌面端 (Windows)**: 运行完美，视频播放正常。
+- ✅ **移动端 (Android)**: **黑屏问题彻底修复**。资源打包与路径加载逻辑已验证通过。
+- ✅ **系统兼容性**: 已解决 Windows 用户名包含空格导致的路径转义错误。
+2026-02-03 更新: 修复了 Windows 平台下的视频播放黑屏问题（通过绝对路径引用绕过解码器限制）。Android 端的路径适配代码已同步更新，正在进行构建测试。
+2026-02-04 更新: 安卓端的路径也改成了强制路径，视频正常播放
+---
 
-Run as a web app:
+## 🛠 技术栈与核心架构
 
-```
-uv run flet run --web
-```
+### 🛠 关键架构更新：全平台统一绝对路径策略 (v0.9.0 Stable)
 
-For more details on running the app, refer to the [Getting Started Guide](https://docs.flet.dev/).
+针对 Android 和 Windows 端的视频黑屏问题，经历了从“Web 相对路径”到“混合策略”再到“全平台绝对路径”的迭代，最终确立了以下方案：
 
-## Build the app
+#### ❌ 之前的错误认知 (已废弃)
+- **误区 1**: 认为 Android 端的 Flet 是纯 Web 容器，必须使用 `/topic/...` 或 `/assets/...` 这样的 HTTP 风格相对路径。
+  - **后果**: 播放器无法在本地文件系统中找到资源，导致黑屏。
+- **误区 2**: 认为 `pyproject.toml` 不需要显式指定 `assets_dir`，只要代码里写了就行。
+  - **后果**: GitHub Actions 构建出的 APK 包里只有代码，**没有视频文件**（资源丢失）。
 
-### Android
+#### ✅ 当前的正确方案 (Unified Absolute Path Strategy)
+Flet 在 Android 上本质是运行在本地的 Python 环境，资源被解压到了手机的物理存储中。因此，我们采用**“邻居查找法”**：
 
-Build the APK using `uv` to ensure consistent dependencies:
+1.  **物理路径定位**: 
+    - 不依赖 Flet 的资源映射机制，而是利用 `pathlib` 获取 `views.py` 脚本的绝对路径。
+    - 基于脚本位置，寻找同级目录下的 `assets` 文件夹。
+    
+2.  **统一 URI 协议**:
+    - 全平台（Windows/Android）统一将路径转换为 **`file:///`** 协议。
+    - Android 的 ExoPlayer 完美支持此协议读取本地私有目录文件。
 
-```bash
-# This command reads configuration from pyproject.toml
-uv run flet build apk -vv
-```
-The build configuration (permissions, split_abi, etc.) is managed in pyproject.toml
-For more details on building and signing `.apk` or `.aab`, refer to the [Android Packaging Guide](https://docs.flet.dev/publish/android/).
-
-### iOS
-
-```
-flet build ipa -v
-```
-
-For more details on building and signing `.ipa`, refer to the [iOS Packaging Guide](https://docs.flet.dev/publish/ios/).
-
-### macOS
-
-```
-flet build macos -v
-```
-
-For more details on building macOS package, refer to the [macOS Packaging Guide](https://docs.flet.dev/publish/macos/).
-
-### Linux
-
-```
-flet build linux -v
+**核心代码逻辑 (`views.py`)**:
+```python
+# 获取脚本所在目录的父级，拼接资源路径，并转为 file:/// URI
+current_dir = pathlib.Path(__file__).parent.resolve()
+full_path = current_dir.joinpath(raw_path).resolve()
+return full_path.as_uri()
 ```
 
-For more details on building Linux package, refer to the [Linux Packaging Guide](https://docs.flet.dev/publish/linux/).
+### 核心依赖
+- **Python**: 3.10+
+- **GUI 框架**: Flet 0.80.5+（基于 2026 年最新版本）
+- **视频组件**: flet-video 0.80.5+
+- **构建工具**: uv (依赖管理) + GitHub Actions (CI/CD)
 
-### Windows
+### 关键语法规范（基于 Flet 0.80+）
 
-```
-flet build windows -v
-```
+> ⚠️ Flet 更新极快，以下规范基于 2026 年最新版本，如有疑问请查阅官方文档
 
-For more details on building Windows package, refer to the [Windows Packaging Guide](https://docs.flet.dev/publish/windows/).
+| 类别 | 规范 | 示例 |
+|------|------|------|
+| **入口点** | `ft.run(main, assets_dir="assets")` | 从 `src/` 上下文执行 |
+| **导航** | 必须使用 `await page.push_route(route)` | 异步函数内使用，必须 await |
+| **按钮文本** | `ft.FilledButton(content=ft.Text("..."))` | ❌ 无 `text` 参数 |
+| **图标** | `ft.Icons.XXX`（大写） | `ft.Icons.PLAY_CIRCLE` |
+| **颜色** | `ft.Colors.XXX`（大写）或十六进制 | `ft.Colors.BLUE_400` 或 `"#0000FF"` |
+| **对齐** | `ft.Alignment(x, y)` | `ft.Alignment(0, 0)` 表示居中 |
+| **圆角** | `ft.BorderRadius.all(value)` | `ft.BorderRadius.all(10)` |
+| **事件处理** | 所有 handler 必须是 `async def` | ❌ 不支持 lambda |
 
+### 视频强制重渲染策略
 
-# Project: Alzheimer's Reminiscence Therapy App (Flet Implementation)
-
-## 1. Project Overview
-A local Python application using `flet` and `flet-video` to deliver interactive reminiscence therapy. The system features a modular topic selection system and a 4-stage video interaction loop (Query -> Natural Repeat -> Feedback).
-
-## 2. Tech Stack & Constraints
-- **Language**: Python 3.10+
-- **GUI Framework**: Flet (Latest version)
-- **Video Component**: `flet_video`
-- **Strict Syntax Rules**:
-  - Entry point: `ft.run(main, assets_dir="assets")`
-  - Button content: `ft.FilledButton(content=ft.Text("Label"))` (No `text` param)
-  - Styling: Use `ft.BorderRadius.all()`
-  - Async: All event handlers must be `async`.
-
-
-## 2. Tech Stack & Constraints
-- **Language**: Python 3.10+
-- **GUI Framework**: Flet (Latest version)
-- **Video Component**: `flet_video`
-- **Strict Syntax Rules**:
-  - Entry point: `ft.run(main, assets_dir="assets")`  <-- 已更新
-  - Navigation: Use `page.push_route(route)` (Avoid `page.go`) <-- 新增
-  - Button content: `ft.FilledButton(content=ft.Text("Label"))` (No `text` param)
-  - Styling: Use `ft.BorderRadius.all()`
-  - Async: All event handlers must be `async`.
-
-## 2. Tech Stack & Constraints
-- **Language**: Python 3.10+
-- **GUI Framework**: Flet (Latest version)
-- **Video Component**: `flet_video`
-- **Strict Syntax Rules**:
-  - Entry point: `ft.run(main, assets_dir="assets")`
-  - Navigation: Use `await page.push_route(route)` (Must be awaited)
-  - Button content: `ft.FilledButton(content=ft.Text("Label"))` (No `text` param)
-  - Styling: Use `ft.BorderRadius.all()`
-  - Async: All event handlers must be `async`.
-  - Icons: Use string names (e.g., ft.Icon(name="play_circle")) instead of ft.icons constants to avoid version mismatches.
-
-## 2. Tech Stack & Constraints
-- **Language**: Python 3.10+
-- **GUI Framework**: Flet (Latest version)
-- **Video Component**: `flet_video`
-- **Strict Syntax Rules**:
-  - Entry point: `ft.run(main, assets_dir="assets")`
-  - Navigation: Use `await page.push_route(route)` (Must be awaited)
-  - Button content: `ft.FilledButton(content=ft.Text("Label"))` (No `text` param)
-  - Styling: Use `ft.BorderRadius.all()`
-  - Async: All event handlers must be `async`.
-  - Icons: Use `ft.Icons.XXX` (e.g., `ft.Icons.PLAY_CIRCLE`) and pass it as the first positional argument. Do NOT use `name=` or `ft.icons` (lowercase).
-
-## 2. Tech Stack & Constraints
-- **Language**: Python 3.10+
-- **GUI Framework**: Flet (Latest version)
-- **Video Component**: `flet_video`
-- **Strict Syntax Rules**:
-  - Entry point: `ft.run(main, assets_dir="assets")`
-  - Navigation: Use `await page.push_route(route)` (Must be awaited)
-  - Button content: `ft.FilledButton(content=ft.Text("Label"))` (No `text` param)
-  - Styling: Use `ft.BorderRadius.all()`
-  - Async: All event handlers must be `async`.
-  - **Icons**: Use `ft.Icons.XXX` (Capitalized `Icons`, e.g., `ft.Icons.PLAY_CIRCLE`).
-  - **Colors**: Use `ft.Colors.XXX` (Capitalized `Colors`, e.g., `ft.Colors.BLUE_400`) or Hex strings (e.g., `"#0000FF"`). Do NOT use `ft.colors` (lowercase).
-
-## 2. Tech Stack & Constraints
-- **Language**: Python 3.10+
-- **GUI Framework**: Flet (Latest version)
-- **Video Component**: `flet_video`
-- **Strict Syntax Rules**:
-  - Entry point: `ft.run(main, assets_dir="assets")`
-  - Navigation: Use `await page.push_route(route)` inside `async def` handlers (NO lambdas).
-  - **Naming Convention (The Golden Rule)**:
-    - **Classes/Enums** (PascalCase): `ft.Icons`, `ft.Colors`, `ft.Row`, `ft.ElevatedButton`.
-    - **Props/Methods** (snake_case): `size`, `on_click`, `expand`.
-  - Icons: Use `ft.Icons.XXX`.
-  - Colors: Use `ft.Colors.XXX`.
-
-## 2. Tech Stack & Constraints
-- **Language**: Python 3.10+
-- **GUI Framework**: Flet (Latest version)
-- **Video Component**: `flet_video`
-- **Strict Syntax Rules**:
-  - Entry point: `ft.run(main, assets_dir="assets")`
-  - Navigation: Use `await page.push_route(route)` (Must be awaited)
-  - Button content: `ft.FilledButton(content=ft.Text("Label"))` (No `text` param)
-  - Styling: Use `ft.BorderRadius.all()`
-  - Async: All event handlers must be `async`.
-  - **Icons**: Use `ft.Icons.XXX` (Capitalized `Icons`, e.g., `ft.Icons.PLAY_CIRCLE`).
-  - **Colors**: Use `ft.Colors.XXX` (Capitalized `Colors`, e.g., `ft.Colors.BLUE_400`) or Hex strings.
-  - **Alignment**: Use explicit `ft.Alignment(x, y)` (e.g., `ft.Alignment(0, 0)` for center). Do NOT use `ft.alignment.center` constants to avoid AttributeErrors.
-
-
-## 2. Tech Stack & Constraints
-- **Language**: Python 3.10+
-- **GUI Framework**: Flet (Latest version)
-- **Video Component**: `flet_video` (Separate Package)
-- **Strict Syntax Rules**:
-  - Entry point: `ft.run(main, assets_dir="assets")`(Executed from `src/` context)
-  - Navigation: Use `await page.push_route(route)` (Must be awaited)
-  - Button content: `ft.FilledButton(content=ft.Text("Label"))` (No `text` param)
-  - Styling: Use `ft.BorderRadius.all()`
-  - Async: All event handlers must be `async`.
-  - **Icons**: Use `ft.Icons.XXX`.
-  - **Colors**: Use `ft.Colors.XXX`.
-  - **Alignment**: Use `ft.Alignment(0, 0)`.
-
-### Key Implementation Details (重要实现细节)
-- **Video Force Re-render Strategy**: 
-  To solve video caching/freezing issues on Android & Web, we use a **"Container Swap"** pattern. When switching videos, we do **not** update the playlist of an existing player. Instead, we create a **fresh** `ftv.Video` instance and replace the container's content. This guarantees the video engine resets completely.
-## 3. Directory Structure
-The application must strictly adhere to the following file structure for dynamic asset loading:
-逆天了，我的电脑里面用户名有个空格，所以flutter不识别，只能用把文件夹放在d盘，用这个命令配置环境变量：set PATH=D:\flutter\bin;%PATH%，靠，还不行文件路径要小心啊，set PATH=D:\flutter\3.38.7\bin;%PATH%（中间多了一个版本号）
-flutter doctor --android-licenses（安卓的协议哗啦啦的流，同意都来不及按）
-set JAVA_HOME=D:\java\17.0.13+11  java在c盘的有空格文件夹中没办法，只能在d盘弄一个没有空格的
-set ANDROID_HOME=D:\Android\sdk
-flutter config --android-sdk "D:\Android\sdk"
-
-
-
-```text
-Gonggong/                       # Project Root
-│
-├── .github/workflows/          # CI/CD Automation
-│   └── build_apk.yml           # GitHub Actions workflow for Android APK
-│
-├── pyproject.toml              # [CORE] Dependencies, Build Config & Permissions
-├── uv.lock                     # Dependency Lockfile (Do not edit manually)
-├── README.md                   # Project Documentation
-├── .gitignore                  # Git Ignore Rules
-│
-└── src/                        # Source Code Root
-    │
-    ├── assets/                 # Media Assets Directory (Auto-scanned)
-    │   │
-    │   ├── topic_family/       # [Topic Folder: Family Memories]
-    │   │   ├── q1_0_query.mp4     # Q1: Initial Question (State 0)
-    │   │   ├── q1_1_repeat.mp4    # Q1: Gentle Repetition (State 1)
-    │   │   ├── q1_2_correct.mp4   # Q1: Positive Feedback (State 2)
-    │   │   └── q1_3_guide.mp4     # Q1: Guidance/Comfort (State 3)
-    │   │
-    │   ├── topic_music/        # [Topic Folder: Old Songs]
-    │   │   └── ...
-    │   │
-    │   ├── icon.png            # App Icon
-    │   └── splash_android.png  # Splash Screen
-    │
-    ├── main.py                 # Entry Point: App lifecycle & Routing logic
-    ├── views.py                # UI Layer: Menu, Player, and Control Views
-    ├── data_loader.py          # Data Layer: Scans /assets and builds Topic objects
-    └── create_files.py         # Utility: Helper scripts for file generation
-```
-## 4. Naming Convention & Data Model
-The `data_loader.py` module must auto-discover content based on filenames found in the `assets/` directory.
-
-### Filename Rules
-**Regex Format:** `q{sequence_id}_{type_id}_{desc}.mp4`
-
-* **sequence_id**: Integer (1, 2, 3...), determines the order of questions within a topic.
-* **type_id**: Integer (0-3), determines the video role.
-    * `0`: **Query** (Initial Question / 初始提问)
-    * `1`: **Repeat** (Natural Repetition / 自然重复)
-    * `2`: **Correct** (Positive Feedback / 正确反馈)
-    * `3`: **Guide** (Guidance or Comfort / 引导反馈)
-* **desc**: String (Optional description for human readability, e.g., "ask_name").
-
-### Data Structure (Python Representation)
-The scanner should organize data into these structures:
+为解决 Android/Web 端视频缓存/冻结问题，采用**"容器替换"**模式：
+- ❌ 不更新现有播放器的 playlist
+- ✅ 每次切换视频时创建全新的 `ftv.Video` 实例
+- ✅ 替换 `Container.content` 强制视频引擎完全重置
 
 ```python
-from typing import Dict, List
-from dataclasses import dataclass
+# 示例代码片段
+new_player = ftv.Video(
+    expand=True,
+    autoplay=True,
+    playlist=[ftv.VideoMedia(src)],
+    key=f"video_{unique_id}"  # 确保唯一性
+)
+video_container.content = new_player
+```
 
+---
+
+## 📁 项目结构
+
+```
+GongGong/
+│
+├── .github/workflows/          # CI/CD 自动化
+│   └── build_apk.yml           # GitHub Actions 打包配置
+│
+├── src/                        # 源代码根目录
+│   ├── main.py                 # 应用入口：生命周期 & 路由逻辑
+│   ├── views.py                # UI 层：菜单视图、播放器视图
+│   ├── data_loader.py          # 数据层：扫描 assets 并构建 Topic 对象
+│   ├── create_files.py         # 工具脚本
+│   │
+│   └── assets/                 # 媒体资源目录（自动扫描）
+│       ├── icon.png            # 应用图标
+│       ├── splash_android.png  # 启动屏幕
+│       │
+│       ├── topic_naming/       # [话题文件夹示例：起名字]
+│       │   ├── q1_0_ask_name.mp4     # Q1: 初始提问（State 0）
+│       │   ├── q1_1_repeat_name.mp4  # Q1: 温和重复（State 1）
+│       │   ├── q1_2_praise_name.mp4  # Q1: 正向反馈（State 2）
+│       │   └── q1_3_guide_name.mp4   # Q1: 引导/安慰（State 3）
+│       │
+│       └── topic_huize/        # [话题文件夹示例：惠泽小吃]
+│           └── ... (同上结构)
+│
+├── pyproject.toml              # 核心配置：依赖、构建参数、权限
+├── uv.lock                     # 依赖锁定文件（自动生成）
+├── .gitignore                  # Git 忽略规则
+└── README.md                   # 本文档
+```
+
+---
+
+## 🎯 命名规范与数据模型
+
+### 视频文件命名规则
+
+**格式**: `q{sequence_id}_{type_id}_{description}.mp4`
+
+**参数说明**:
+- `sequence_id`: 整数（1, 2, 3...），决定问题在话题中的顺序
+- `type_id`: 整数（0-3），决定视频角色：
+  - `0` → **Query** (初始提问)
+  - `1` → **Repeat** (自然重复)
+  - `2` → **Correct** (正确反馈)
+  - `3` → **Guide** (引导/安慰)
+- `description`: 字符串（可选，便于人类识别，如 "ask_name"）
+
+**示例**:
+```
+q1_0_ask_name.mp4      # 第1题的初始提问
+q1_1_repeat_name.mp4   # 第1题的重复
+q2_0_ask_snack.mp4     # 第2题的初始提问
+```
+
+### 数据结构
+
+```python
 @dataclass
 class Question:
-    id: int  # Corresponds to sequence_id
-    # Key is type_id (0-3), Value is the absolute file path
-    videos: Dict[int, str] 
-
+    id: int                    # 对应 sequence_id
+    videos: Dict[int, str]     # {type_id: 文件路径}
+    
     def is_valid(self) -> bool:
-        """Returns True if all 4 video types (0-3) are present."""
+        """验证是否包含完整的 4 个阶段视频"""
         return all(k in self.videos for k in [0, 1, 2, 3])
 
 @dataclass
 class Topic:
-    id: str            # Folder name (e.g., "topic_family")
-    name: str          # Display name (e.g., "Family Memories")
-    questions: List[Question] # List of Question objects, sorted by id
+    id: str                    # 文件夹名（如 "topic_naming"）
+    name: str                  # 显示名称（如 "起名字"）
+    questions: List[Question]  # 按 id 排序的问题列表
 ```
 
-## 5. Interaction Logic (State Machine)
-The Player View operates on a specific `Question` object and manages 4 states corresponding to `type_id`.
+---
 
-### State 0: Query (提问)
-* **Action**: Autoplay `Video[0]` (Initial Question).
-* **UI Controls**:
-  * Button **[听不清/再说一遍]** -> Transition to **State 1**.
-  * Button **[回答正确]** -> Transition to **State 2**.
-  * Button **[忘记了]** -> Transition to **State 3**.
+## 🎮 交互逻辑（状态机）
 
-### State 1: Repeat (自然重复)
-* **Action**: Play `Video[1]` (Gentle Repetition).
-* **UI Controls**:
-  * Same as **State 0** (User can answer or ask to repeat again after listening).
+播放器视图针对每个 `Question` 对象管理 4 个状态（对应 `type_id`）：
 
-### State 2: Correct (正确反馈)
-* **Action**: Play `Video[2]` (Positive Feedback).
-* **UI Controls**:
-  * Button **[下一题]** -> Load next `Question` object (State 0).
-  * *(If last question)* Button **[返回菜单]** -> Exit to Menu.
+### State 0: Query（提问）
+- **动作**: 自动播放 `Video[0]`（初始提问）
+- **用户操作**:
+  - 🔵 **听不清/再说一遍** → 转到 State 1
+  - 🟢 **回答正确** → 转到 State 2
+  - 🟠 **忘记了** → 转到 State 3
 
-### State 3: Guide (引导/错误反馈)
-* **Action**: Play `Video[3]` (Guidance/Comfort).
-* **UI Controls**:
-  * Button **[重试]** -> Reload current `Question` (State 0).
-  * Button **[跳过]** -> Load next `Question` object (State 0).
+### State 1: Repeat（重复）
+- **动作**: 播放 `Video[1]`（温和重复）
+- **用户操作**: 同 State 0（可继续回答或再次请求重复）
 
+### State 2: Correct（正确反馈）
+- **动作**: 播放 `Video[2]`（正向鼓励）
+- **用户操作**:
+  - 🟢 **下一题** → 加载下一个 Question（返回 State 0）
+  - 🏠 **返回菜单**（如果是最后一题）
 
+### State 3: Guide（引导）
+- **动作**: 播放 `Video[3]`（引导/安慰）
+- **用户操作**:
+  - 🔄 **重试** → 重新加载当前 Question（返回 State 0）
+  - ⏭️ **跳过** → 加载下一个 Question（返回 State 0）
 
+---
 
-## 6、奇怪的bug：
-### 协议没法同意，滚太快了根本不让按y来同意
+## 🚀 快速开始
 
+### 本地运行
 
-别灰心！我们遇到了一个经典的“死锁”：
+#### 1. 安装依赖（推荐使用 uv）
 
-Flet 帮你下了 SDK 的核心（cmdline-tools），但因为你打断了，它没来得及下载剩下的“肢体”（platform-tools）。
+```bash
+# 安装 uv（如果尚未安装）
+pip install uv
 
-Flutter 检查 SDK 时，发现它“缺胳膊少腿”（没有 platform-tools），所以直接报错说“找不到 SDK”。
+# 同步依赖
+uv sync
+```
 
-你想签协议补救，但 Flutter 找不到 SDK，所以也不让你签。
+#### 2. 桌面模式运行
 
-🔨 破局方案：绕过 Flutter，直接用 Android 原生工具
-既然 Flutter 嫌弃它不完整，我们就直接用已经下载好的 Android 原生工具（sdkmanager）来手动修补。
+```bash
+uv run flet run
+```
 
-请严格按照以下步骤操作，不需要重新下载，也不需要拼手速。
+#### 3. Web 模式运行
 
-第一步：手动安装缺失的组件
-在你的 CMD 黑框里，直接复制并运行下面这行命令。它会调用 D 盘里现有的工具，去下载 Flutter 缺失的那部分：
+```bash
+uv run flet run --web
+```
 
-D:\Android\sdk\cmdline-tools\12.0\bin\sdkmanager.bat "platforms;android-36" "build-tools;28.0.3"
+---
 
-flutter doctor --android-licenses
+## 📦 Android APK 打包
 
-### 代理
+### 方式一：GitHub Actions 自动打包（✅ 推荐）
 
-(GongGong) D:\update_gonggong\GongGong>
+**流程说明**:
+1. 推送代码到 `main` 或 `master` 分支
+2. GitHub Actions 自动触发构建流程（见 `.github/workflows/build_apk.yml`）
+3. 构建完成后在 **Actions** 页面下载 APK
 
-(GongGong) D:\update_gonggong\GongGong>set http_proxy=http://127.0.0.1:7897
+**手动触发**:
+- 进入 GitHub 仓库 → Actions → "Build Android APK" → Run workflow
 
-(GongGong) D:\update_gonggong\GongGong>set https_proxy=http://127.0.0.1:7897
+**配置说明**:
+- 运行环境: `ubuntu-latest`（Linux）
+- Java: Temurin 17
+- Flutter: Stable 通道
+- 依赖管理: uv
+- 构建命令: `uv run flet build apk --verbose --project "Gonggong"`
 
-(GongGong) D:\update_gonggong\GongGong>curl ipinfo.io
-{
-  "status": 429,
-  "error": {
-    "title": "Rate limit exceeded",
-    "message": "You've hit the daily limit for the unauthenticated API.  Create an API access token by signing up to get 50k req/month."
-  }
-}
-(GongGong) D:\update_gonggong\GongGong>curl ifconfig.me
-23.247.137.216
-(GongGong) D:\update_gonggong\GongGong>curl ci.ipify.org
+**关键优势**:
+- ✅ 无需本地配置 Flutter/Android SDK
+- ✅ 环境一致性有保障
+- ✅ 自动化构建，可复现
 
-(GongGong) D:\update_gonggong\GongGong>rmdir /s /q build
+### 方式二：本地打包（仅限参考）
 
-(GongGong) D:\update_gonggong\GongGong>set PIP_INDEX_URL=
+> ⚠️ 本地 Windows 环境打包存在诸多环境依赖问题，建议优先使用 GitHub Actions
 
-(GongGong) D:\update_gonggong\GongGong>set PUB_HOSTED_URL=
+**详细的本地打包尝试记录** 请参考：[`LOCAL_BUILD_WINDOWS.md`](./LOCAL_BUILD_WINDOWS.md)
 
-(GongGong) D:\update_gonggong\GongGong>set FLUTTER_STORAGE_BASE_URL=
+**简要步骤**:
+```bash
+# 确保已安装 Flutter、Android SDK、Java 17
+# 清理旧构建
+uv run flet build apk -vv
+```
 
-(GongGong) D:\update_gonggong\GongGong>flet build apk -vv
+**常见问题**:
+- 用户名包含空格导致 Flutter 无法识别
+- 协议签署流程过快
+- 环境变量配置复杂
+
+---
+
+## ⚙️ 配置文件说明
+
+### pyproject.toml
+
+核心配置文件，包含项目元信息、依赖和构建参数。
+
+```toml
+[tool.flet]
+org = "com.gonggong"            # 组织标识符
+product = "公公的留声机"         # 应用名称
+company = "GongGong Family"     # 公司/团队名
+
+[tool.flet.app]
+path = "src"                    # 源码路径
+# 🔥 关键修正：必须指定 assets 的物理路径，否则视频不会被打入 APK 包！
+assets_dir = "src/assets"
+
+[tool.flet.android]
+split_per_abi = false           # false = 通用包，true = 按架构分包
+
+[tool.flet.android.permission]
+"android.permission.INTERNET" = true
+"android.permission.READ_EXTERNAL_STORAGE" = true
+```
+
+---
+
+## ⚠️ 已知问题
+
+### 视频播放黑屏
+
+**问题描述**:
+- 桌面端使用 `ft.AppView.WEB_BROWSER` 模式时视频正常
+- 桌面客户端模式和 Android 应用中视频显示黑屏
+- 其他功能完全正常
+
+**当前状态**:
+- 已创建 `fix/video-black-screen` 分支专门解决此问题
+- 初步分析与视频编解码器/硬件加速有关
+
+**临时解决方案**:
+```python
+# 在开发调试时可使用 Web 模式
+ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
+```
+
+## 📝 问题修复记录
+
+### [已解决] 视频播放黑屏 (Android & Windows)
+- **症状**: 界面UI加载正常，但视频区域黑屏，无报错或报 `No such file`。
+- **根本原因**: 
+  1. **资源丢失**: `pyproject.toml` 缺少 `assets_dir` 配置，导致视频未打包进 APK。
+  2. **路径错误**: 代码使用了 Web 相对路径，而 Android ExoPlayer 需要本地绝对路径 (`file:///`)。
+- **修复方案**: 
+  1. 修正构建配置，确保资源打入包内。
+  2. 重构 `views.py`，使用 `pathlib` 动态计算绝对物理路径。
+
+### [已解决] Windows 用户名空格问题
+- **症状**: 路径 `C:\Users\Chen Xinglin\...` 被截断或转义错误。
+- **修复方案**: 同样通过 `pathlib.resolve()` 获取绝对路径并转换为 URI 解决。
+---
+
+## 📚 参考资源
+
+- [Flet 官方文档](https://docs.flet.dev/)
+- [Android 打包指南](https://docs.flet.dev/publish/android/)
+- [flet-video 组件文档](https://flet.dev/docs/controls/video)
+
+---
+
+## 🤝 贡献指南
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m '添加某某功能'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 提交 Pull Request
+
+**注意事项**:
+- 所有函数必须添加中文注释
+- 遵循 Flet 0.80+ 的最新语法规范
+- 测试代码在桌面和 Web 模式下的兼容性
+
+---
+
+## 📄 许可证
+
+Copyright (C) 2026 GongGong Family
+
+---
+
+## 👤 作者
+
+GongGong Developer  
+邮箱: 1641782731@qq.com
