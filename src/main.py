@@ -58,10 +58,10 @@ async def main(page: ft.Page):
     # 这里传入 page 替代 event，避免构造 RouteChangeEvent 的报错
     await route_change(page)
 
-# if __name__ == "__main__":
-#     ft.run(main, assets_dir="assets")
+if __name__ == "__main__":
+    ft.run(main, assets_dir="assets")
 
 #     ft.run(main, assets_dir="assets")
-if __name__ == "__main__":
-    # 这一行会让程序不弹窗，而是自动打开你的默认浏览器（Chrome/Edge）
-    ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
+# if __name__ == "__main__":
+#     # 这一行会让程序不弹窗，而是自动打开你的默认浏览器（Chrome/Edge）
+#     ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
