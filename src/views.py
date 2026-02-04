@@ -4,6 +4,7 @@ from typing import List, Callable, Awaitable
 from data_loader import Topic, Question
 import pathlib
 import platform
+import os
 
 # ==========================================
 # 1. 辅助函数 (智能跨平台路径处理)
@@ -11,61 +12,17 @@ import platform
 
 def _get_video_src(raw_path: str) -> str:
     """
-    [智能分流]
-    - Windows: 强制使用绝对 URI (file:///D:/...), 绕过 Flet 服务器，直接读取磁盘，解决黑屏。
-    - Android/Web: 强制使用相对 Web 路径 (/topic/...), 走 Assets 资源通道。
+    全平台通用的绝对物理路径策略
+    无论在 Windows 还是 Android，直接读取脚本所在目录的物理文件
     """
-    # 增加调试日志：打印当前 OS 和传入的 raw_path
-    current_os = platform.system()
-    print(f"DEBUG: OS={current_os} | Input={raw_path}")
-    
-    # 1. 基础清洗：转为 Path 对象
-    path_obj = pathlib.Path(raw_path)
-    parts = path_obj.parts  # 例如 ('assets', 'topic_naming', 'q1.mp4')
-    
-    # [策略 A] Windows 桌面端 -> 绝对路径 (file:///)
-    # 注意：只有在非 Web 模式下才用绝对路径（这里假设你打包的是 Native 应用）
-    if current_os == "Windows":
-        # 获取当前脚本 (views.py) 的父目录 -> src/
-        current_dir = pathlib.Path(__file__).parent.resolve()
-        
-        # 构造完整物理路径: D:\...\src\assets\topic_naming\q1.mp4
-        # 逻辑：raw_path 可能是 "assets/topic..."，直接拼接到 current_dir 下
-        full_path = current_dir.joinpath(raw_path).resolve()
-        
-        if not full_path.exists():
-            print(f"❌ [Windows] 致命错误：文件不存在 -> {full_path}")
-            return ""
-            
-        # 转换为 URI: file:///D:/... (自动处理空格和中文)
-        print(f"✅ [Windows] 使用绝对物理路径: {full_path.name}")
-        return full_path.as_uri()
-
-    # [策略 B] Android / Web -> 相对路径 (Assets)
-    else:
-        # 剥离 "assets" 前缀，构造 /topic/...
-        # 处理不同格式的路径：
-        # 1. "assets/topic/..." -> "/topic/..."
-        # 2. "/assets/topic/..." -> "/topic/..."
-        # 3. "topic/..." -> "/topic/..."
-        # 4. "/topic/..." -> "/topic/..."
-        
-        # 将路径转换为字符串并规范化
-        path_str = path_obj.as_posix()
-        
-        # 去掉开头的斜杠
-        if path_str.startswith('/'):
-            path_str = path_str[1:]
-        
-        # 去掉 "assets/" 前缀（如果存在）
-        if path_str.startswith('assets/'):
-            path_str = path_str[7:]  # 去掉 "assets/"
-        
-        # 确保以斜杠开头
-        clean_path = '/' + path_str.lstrip('/')
-            
-        print(f"✅ [Android/Web] 使用 Assets 路径: {clean_path}")
-        return clean_path
+    # 获取当前脚本 (views.py) 的父目录作为基准目录
+    current_dir = pathlib.Path(__file__).parent.resolve()
+    # 使用 current_dir.joinpath(raw_path) 拼接出文件的完整绝对路径
+    full_path = current_dir.joinpath(raw_path).resolve()
+    # 打印 DEBUG 日志到控制台
+    print(f"DEBUG: Target={full_path} | Exists={full_path.exists()}")
+    # 返回 URI 格式的路径 (file:///...)，这对 Android 的 ExoPlayer 最安全
+    return full_path.as_uri()
 
 def get_menu_view(page: ft.Page, topics: List[Topic], on_topic_click: Callable[[Topic], Awaitable[None]]):
     """主菜单：展示所有可用的话题"""
@@ -140,6 +97,9 @@ def get_player_view(page: ft.Page, topic: Topic):
     total_questions = len(questions)
 
     # --- UI Controls Definition ---
+    
+    # 新增调试控件
+    debug_text = ft.Text(value="初始化...", color=ft.Colors.RED, size=12, selectable=True)
     
     # [关键修改] 定义一个容器，而不是直接定义 Video
     # 稍后我们将把 Video 组件动态塞入这个容器
@@ -226,7 +186,17 @@ def get_player_view(page: ft.Page, topic: Topic):
         
         if raw_path:
             src = _get_video_src(raw_path)
-            print(f"Switching video to: {src}") 
+            print(f"Switching video to: {src}")
+            
+            # 更新调试信息：将 URI 还原为普通路径，检测文件是否存在
+            # 去掉 file:/// 前缀
+            if src.startswith('file:///'):
+                file_path = src[8:]  # 移除 'file:///'
+            else:
+                file_path = src
+            exists = os.path.exists(file_path)
+            debug_text.value = f"文件存在: {exists}\n路径: {file_path}"
+            debug_text.update()
             
             # [关键修复] 暴力重绘策略
             # 不更新旧 Video，而是创建一个全新的 Video 组件
@@ -332,6 +302,14 @@ def get_player_view(page: ft.Page, topic: Topic):
                                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                             ),
                             padding=10
+                        ),
+                        # 调试信息容器（黄色背景）
+                        ft.Container(
+                            content=debug_text,
+                            bgcolor=ft.Colors.YELLOW_100,
+                            padding=5,
+                            border_radius=5,
+                            margin=ft.margin.only(bottom=5)
                         ),
                         # [Critical] 这里放置的是 video_container，不是 video_player
                         video_container,
