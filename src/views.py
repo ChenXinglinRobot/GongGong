@@ -40,7 +40,7 @@ def get_menu_view(page: ft.Page, topics: List[Topic], on_topic_click: Callable[[
                     [
                         ft.Icon(ft.Icons.VIDEO_LIBRARY, size=40),
                         ft.Text(topic.name, size=20, weight=ft.FontWeight.BOLD),
-                        ft.Text(f"包含 {len(topic.questions)} 个环节", size=12),
+                        ft.Text(f"包含 {len(topic.questions)} 个问题", size=12),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -87,29 +87,17 @@ def get_menu_view(page: ft.Page, topics: List[Topic], on_topic_click: Callable[[
     )
 
 # ==========================================
-# 3. 播放器视图 (Player View - Core Logic)
+# 3. 播放器视图 (Player View - Stack 重构版)
 # ==========================================
 
 def get_player_view(page: ft.Page, topic: Topic):
-    """核心播放页面"""
+    """核心播放页面 - 使用 Stack 三层架构实现沉浸式覆盖"""
     current_q_index = 0
     questions: List[Question] = topic.questions
     total_questions = len(questions)
 
     # --- UI Controls Definition ---
     
-    # 新增调试控件
-    debug_text = ft.Text(value="初始化...", color=ft.Colors.RED, size=12, selectable=True)
-    
-    # [关键修改] 定义一个容器，而不是直接定义 Video
-    # 稍后我们将把 Video 组件动态塞入这个容器
-    video_container = ft.Container(
-        expand=2, 
-        bgcolor=ft.Colors.BLACK,
-        alignment=ft.Alignment(0, 0),
-        content=ft.ProgressRing() # 初始显示加载圈
-    )
-
     # 按钮定义
     btn_repeat = ft.FilledButton(
         content=ft.Text("听不清 / 再说一遍"),
@@ -172,7 +160,100 @@ def get_player_view(page: ft.Page, topic: Topic):
         alignment=ft.MainAxisAlignment.CENTER,
     )
 
-    title_text = ft.Text(f"当前进度: 1 / {total_questions}", size=18)
+    # 进度文本
+    title_text = ft.Text(f"当前进度: 1 / {total_questions}", size=12, color=ft.Colors.WHITE70)
+    
+    # 视频容器 - 用于动态更新视频
+    video_container = ft.Container(
+        bgcolor=ft.Colors.BLACK,
+        alignment=ft.Alignment(0, 0),  # 居中对齐
+        content=ft.ProgressRing()  # 初始显示加载圈
+    )
+    
+    # UI 覆盖层可见性状态
+    overlay_visible = False
+    
+    # --- Layer 3: UI 覆盖层 (Top) ---
+    # 先创建返回按钮，以便绑定事件
+    back_button = ft.IconButton(
+        ft.Icons.ARROW_BACK,
+        on_click=None,  # 稍后绑定
+        icon_color=ft.Colors.WHITE
+    )
+    
+    overlay_container = ft.Container(
+        left=0,
+        top=0,
+        right=0,
+        bottom=0,
+        visible=False,  # 初始隐藏
+        content=ft.Column(
+            [
+                # A. 顶部自定义 AppBar
+                ft.Container(
+                    bgcolor="#80000000",  # 半透明黑色
+                    padding=ft.padding.only(top=30, left=15, right=15, bottom=10),
+                    content=ft.Row(
+                        [
+                            # 返回按钮
+                            back_button,
+                            # 信息列
+                            ft.Column(
+                                [
+                                    ft.Text(
+                                        topic.name,
+                                        color=ft.Colors.WHITE,
+                                        size=16,
+                                        weight=ft.FontWeight.BOLD
+                                    ),
+                                    title_text
+                                ],
+                                spacing=2
+                            ),
+                            # 占位器
+                            ft.Container(expand=True)
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                    )
+                ),
+                # 占位器
+                ft.Container(expand=True),
+                # B. 底部控制栏
+                ft.Container(
+                    padding=20,
+                    content=controls_row
+                )
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            expand=True
+        )
+    )
+    
+    # --- Layer 2: 手势检测层 (Middle) ---
+    gesture_detector = ft.GestureDetector(
+        left=0,
+        top=0,
+        right=0,
+        bottom=0,
+        on_tap=None,  # 稍后绑定
+        on_double_tap=None  # 稍后绑定
+    )
+    
+    # --- Layer 1: 视频层 (Bottom) ---
+    # 视频层容器将在初始化时设置
+    
+    # --- 创建 Stack ---
+    stack_layers = ft.Stack(
+        expand=True,
+        controls=[
+            # Layer 1: 视频层 (Bottom)
+            video_container,
+            # Layer 2: 手势检测层 (Middle)
+            gesture_detector,
+            # Layer 3: UI 覆盖层 (Top)
+            overlay_container
+        ]
+    )
 
     # --- Logic ---
 
@@ -188,33 +269,19 @@ def get_player_view(page: ft.Page, topic: Topic):
             src = _get_video_src(raw_path)
             print(f"Switching video to: {src}")
             
-            # 更新调试信息：将 URI 还原为普通路径，检测文件是否存在
-            # 去掉 file:/// 前缀
-            if src.startswith('file:///'):
-                file_path = src[8:]  # 移除 'file:///'
-            else:
-                file_path = src
-            exists = os.path.exists(file_path)
-            debug_text.value = f"文件存在: {exists}\n路径: {file_path}"
-            debug_text.update()
-            
-            # [关键修复] 暴力重绘策略
-            # 不更新旧 Video，而是创建一个全新的 Video 组件
-            # 这样能强制浏览器/Android 重新加载资源
+            # 创建新的 Video 组件
             new_player = ftv.Video(
                 expand=True,
-                autoplay=True,      # 新组件创建即播放
+                autoplay=True,
                 show_controls=False,
                 playlist=[ftv.VideoMedia(src)],
                 aspect_ratio=16/9,
                 filter_quality=ft.FilterQuality.HIGH,
-                # 即使是新组件，最好也加个 key 确保唯一性 (可选，但推荐)
                 key=f"video_{q.id}_{state_id}_{current_q_index}"
             )
             
             # 将容器内容替换为新播放器
             video_container.content = new_player
-            # 注意：新组件不需要 await video.play()，因为有 autoplay=True
         else:
             print(f"Error: Missing video for State {state_id} in Question {q.id}")
             video_container.content = ft.Text("视频缺失", color=ft.Colors.RED)
@@ -233,6 +300,21 @@ def get_player_view(page: ft.Page, topic: Topic):
 
         page.update()
 
+    # --- 手势处理函数 ---
+    
+    async def toggle_overlay(e):
+        nonlocal overlay_visible
+        overlay_visible = not overlay_visible
+        overlay_container.visible = overlay_visible
+        page.update()
+    
+    async def toggle_play_pause(e):
+        # 切换视频播放/暂停（可选功能）
+        if video_container.content and isinstance(video_container.content, ftv.Video):
+            # 这里需要访问 Video 组件的播放状态，但 flet_video API 可能需要检查
+            # 暂时只打印日志
+            print("Double tap: Toggle play/pause (功能待实现)")
+    
     # --- Handlers ---
     
     async def on_repeat_click(e): await update_ui_state(1)
@@ -265,6 +347,15 @@ def get_player_view(page: ft.Page, topic: Topic):
     btn_skip.on_click = on_next_or_skip_click
     btn_finish.on_click = on_finish_click
 
+    # --- 绑定事件处理函数 ---
+    
+    # 绑定手势事件
+    gesture_detector.on_tap = toggle_overlay
+    gesture_detector.on_double_tap = toggle_play_pause
+    
+    # 绑定返回按钮事件
+    back_button.on_click = on_back_nav_click
+    
     # --- Initialization ---
     
     if total_questions > 0:
@@ -289,41 +380,7 @@ def get_player_view(page: ft.Page, topic: Topic):
         padding=0,
         controls=[
             ft.SafeArea(
-                content=ft.Column(
-                    [
-                        ft.Container(
-                            content=ft.Row(
-                                [
-                                    ft.IconButton(ft.Icons.ARROW_BACK, on_click=on_back_nav_click),
-                                    ft.Text(f"正在进行: {topic.name}", size=20, weight=ft.FontWeight.BOLD),
-                                    ft.Container(expand=True),
-                                    title_text
-                                ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                            ),
-                            padding=10
-                        ),
-                        # 调试信息容器（黄色背景）
-                        ft.Container(
-                            content=debug_text,
-                            bgcolor=ft.Colors.YELLOW_100,
-                            padding=5,
-                            border_radius=5,
-                            margin=ft.margin.only(bottom=5)
-                        ),
-                        # [Critical] 这里放置的是 video_container，不是 video_player
-                        video_container,
-                        ft.Container(
-                            content=controls_row,
-                            expand=1,
-                            padding=20,
-                            bgcolor=ft.Colors.GREY_100,
-                            alignment=ft.Alignment(0, 0)
-                        )
-                    ],
-                    expand=True,
-                    spacing=0
-                ),
+                content=stack_layers,
                 expand=True
             )
         ]

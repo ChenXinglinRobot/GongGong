@@ -7,6 +7,8 @@ async def main(page: ft.Page):
     # 1. 初始化设置
     page.title = "阿尔兹海默症回忆疗法"
     page.theme_mode = ft.ThemeMode.LIGHT
+    page.padding = 0  # 移除内边距，确保内容接触边缘
+    page.bgcolor = ft.Colors.BLACK  # 设置黑色背景，提供影院边框效果
     
     # 2. 加载数据
     topics = data_loader.load_topics("assets")
