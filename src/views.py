@@ -6,16 +6,6 @@ import pathlib
 import platform
 
 # ==========================================
-# 1. 辅助函数 (Android/Web 专用 - 保持相对路径)
-# ==========================================
-import flet as ft
-import flet_video as ftv
-from typing import List, Callable, Awaitable
-from data_loader import Topic, Question
-import pathlib
-import platform  # [新增] 用于检测操作系统
-
-# ==========================================
 # 1. 辅助函数 (智能跨平台路径处理)
 # ==========================================
 
@@ -25,12 +15,13 @@ def _get_video_src(raw_path: str) -> str:
     - Windows: 强制使用绝对 URI (file:///D:/...), 绕过 Flet 服务器，直接读取磁盘，解决黑屏。
     - Android/Web: 强制使用相对 Web 路径 (/topic/...), 走 Assets 资源通道。
     """
+    # 增加调试日志：打印当前 OS 和传入的 raw_path
+    current_os = platform.system()
+    print(f"DEBUG: OS={current_os} | Input={raw_path}")
+    
     # 1. 基础清洗：转为 Path 对象
     path_obj = pathlib.Path(raw_path)
     parts = path_obj.parts  # 例如 ('assets', 'topic_naming', 'q1.mp4')
-    
-    # 2. 检测当前系统
-    current_os = platform.system() # 'Windows', 'Linux' (Android底层也是Linux), 'Darwin' (Mac)
     
     # [策略 A] Windows 桌面端 -> 绝对路径 (file:///)
     # 注意：只有在非 Web 模式下才用绝对路径（这里假设你打包的是 Native 应用）
@@ -53,10 +44,25 @@ def _get_video_src(raw_path: str) -> str:
     # [策略 B] Android / Web -> 相对路径 (Assets)
     else:
         # 剥离 "assets" 前缀，构造 /topic/...
-        if len(parts) > 1 and parts[0] == "assets":
-            clean_path = "/" + "/".join(parts[1:]) 
-        else:
-            clean_path = "/" + path_obj.as_posix().lstrip("/")
+        # 处理不同格式的路径：
+        # 1. "assets/topic/..." -> "/topic/..."
+        # 2. "/assets/topic/..." -> "/topic/..."
+        # 3. "topic/..." -> "/topic/..."
+        # 4. "/topic/..." -> "/topic/..."
+        
+        # 将路径转换为字符串并规范化
+        path_str = path_obj.as_posix()
+        
+        # 去掉开头的斜杠
+        if path_str.startswith('/'):
+            path_str = path_str[1:]
+        
+        # 去掉 "assets/" 前缀（如果存在）
+        if path_str.startswith('assets/'):
+            path_str = path_str[7:]  # 去掉 "assets/"
+        
+        # 确保以斜杠开头
+        clean_path = '/' + path_str.lstrip('/')
             
         print(f"✅ [Android/Web] 使用 Assets 路径: {clean_path}")
         return clean_path
