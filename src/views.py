@@ -13,12 +13,10 @@ import os
 def _get_video_src(raw_path: str) -> str:
     """
     全平台通用的绝对物理路径策略
-    无论在 Windows 还是 Android，直接读取脚本所在目录的物理文件
+    处理外部视频文件的路径转换
     """
-    # 获取当前脚本 (views.py) 的父目录作为基准目录
-    current_dir = pathlib.Path(__file__).parent.resolve()
-    # 使用 current_dir.joinpath(raw_path) 拼接出文件的完整绝对路径
-    full_path = current_dir.joinpath(raw_path).resolve()
+    # raw_path 已经是绝对路径（来自 data_loader）
+    full_path = pathlib.Path(raw_path).resolve()
     # 打印 DEBUG 日志到控制台
     print(f"DEBUG: Target={full_path} | Exists={full_path.exists()}")
     # 返回 URI 格式的路径 (file:///...)，这对 Android 的 ExoPlayer 最安全
@@ -380,4 +378,132 @@ def get_player_view(page: ft.Page, topic: Topic):
         route=f"/play/{topic.id}",
         padding=0,
         controls=[stack_layers]
+    )
+
+
+# ==========================================
+# 4. 设置向导视图 (Setup View)
+# ==========================================
+
+# views.py 中的 get_setup_view 函数
+
+def get_setup_view(
+    page: ft.Page, 
+    on_success: Callable[[str], Awaitable[None]],
+    file_picker: ft.FilePicker,          # <--- 新增：接收主程序的 Picker
+    permission_handler: object = None    # <--- 新增：接收主程序的 Handler
+):
+    """设置向导页面"""
+    
+    # 1. 准备变量 (如果是移动端)
+    is_mobile = page.platform in [ft.PagePlatform.ANDROID, ft.PagePlatform.IOS]
+
+    # ========================================================
+    # 🔥 核心修复 A: 把非可视化的服务组件加入 page.overlay
+    # ========================================================
+    # ❌ [删除] 既然是传进来的，就不要在这里创建了
+    # view_file_picker = ft.FilePicker()
+    # page.overlay.append(view_file_picker)
+    # ... import flet_permission_handler ...
+    
+    # 注意：现在使用传入的 file_picker 和 permission_handler
+    # 这些组件应该已经在 main.py 中被添加到 page.overlay 了
+
+    # ========================================================
+    
+    # UI 组件 (保持不变)
+    status_text = ft.Text("请选择手机内的'GongGong'视频文件夹", size=18, text_align=ft.TextAlign.CENTER)
+    selected_path_text = ft.Text("", size=14, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER)
+    select_button = ft.FilledButton(
+        content=ft.Row(
+            [ft.Icon(ft.Icons.FOLDER_OPEN), ft.Text("授权并选择文件夹", size=16)],
+            alignment=ft.MainAxisAlignment.CENTER, spacing=10
+        ),
+        height=60, width=300,
+    )
+    loading_ring = ft.ProgressRing(visible=False)
+    error_text = ft.Text("", color=ft.Colors.RED, text_align=ft.TextAlign.CENTER)
+    
+    async def handle_select_folder(e):
+        # ... (内部逻辑完全不用变，代码省略以节省篇幅) ...
+        # 这里原来的逻辑都是对的，不需要改
+        select_button.disabled = True
+        loading_ring.visible = True
+        error_text.value = ""
+        page.update()
+        
+        try:
+            if is_mobile and permission_handler:
+                import flet_permission_handler as fph
+                status = await permission_handler.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
+                if status != fph.PermissionStatus.GRANTED:
+                    error_text.value = "存储权限被拒绝"
+                    select_button.disabled = False
+                    loading_ring.visible = False
+                    page.update()
+                    return
+
+            selected_path = await file_picker.get_directory_path(dialog_title="选择视频文件夹")
+            
+            if not selected_path:
+                error_text.value = "已取消"
+                select_button.disabled = False
+                loading_ring.visible = False
+                page.update()
+                return
+
+            # ... 验证逻辑保持不变 ...
+            from pathlib import Path
+            path_obj = Path(selected_path)
+            has_mp4_files = any(path_obj.glob("**/*.mp4"))
+            has_topic_folders = any(d.name.startswith("topic_") and d.is_dir() for d in path_obj.iterdir())
+            
+            if not (has_mp4_files or has_topic_folders):
+                error_text.value = "文件夹无效（未找到视频）"
+                select_button.disabled = False
+                loading_ring.visible = False
+                page.update()
+                return
+
+            # 🔥 修复写入逻辑：使用 page.shared_preferences
+            # 不要在这里实例化 ft.SharedPreferences()，也不要 append 到 overlay
+            await page.shared_preferences.set("video_root_path", selected_path)
+            selected_path_text.value = f"已选择: {selected_path}"
+            await on_success(selected_path)
+
+        except Exception as ex:
+            error_text.value = f"错误: {str(ex)}"
+            select_button.disabled = False
+            loading_ring.visible = False
+            page.update()
+    
+    select_button.on_click = handle_select_folder
+    
+    # ========================================================
+    # 🔥 核心修复 B: 从 View.controls 中移除 FilePicker
+    # ========================================================
+    return ft.View(
+        route="/setup",
+        controls=[
+            ft.SafeArea(
+                content=ft.Column(
+                    [
+                        ft.Container(height=50),
+                        ft.Icon(ft.Icons.VIDEO_SETTINGS, size=80, color=ft.Colors.BLUE_400),
+                        status_text,
+                        ft.Container(height=10),
+                        selected_path_text,
+                        ft.Container(height=30),
+                        select_button,
+                        ft.Container(height=20),
+                        loading_ring,
+                        error_text,
+                    ],
+                    alignment=ft.MainAxisAlignment.START,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    expand=True
+                ),
+                expand=True
+            )
+        ]
     )

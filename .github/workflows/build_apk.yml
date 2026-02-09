@@ -39,13 +39,20 @@ jobs:
       - name: Clean Build
         run: rm -rf build/ dist/
 
-      # 📦 官方标准打包命令
-      # 1. 没有任何位置参数 (默认当前目录)，这样它能读到 pyproject.toml
-      # 2. --project 保持原样防止乱码
-      # 3. 依赖会自动从 pyproject.toml 读取！
+      # 📦 修改后的打包命令
+      # 1. 指定 "src" 目录作为入口 (因为 main.py 在 src 里)
+      # 2. 声明 Android 存储权限 (否则 App 无法读取视频)
+      # 3. 强制包含 flet_video 和 flet_permission_handler
       - name: Build APK
         run: |
-          uv run flet build apk --verbose --project "Gonggong"
+          uv run flet build apk src \
+            --verbose \
+            --project "Gonggong" \
+            --description "阿尔兹海默症回忆疗法" \
+            --permissions android.permission.READ_EXTERNAL_STORAGE \
+            --permissions android.permission.WRITE_EXTERNAL_STORAGE \
+            --permissions android.permission.MANAGE_EXTERNAL_STORAGE \
+            --include-packages flet_video,flet_permission_handler
         
       - name: Upload APK
         uses: actions/upload-artifact@v4
