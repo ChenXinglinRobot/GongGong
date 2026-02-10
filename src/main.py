@@ -19,26 +19,14 @@ async def main(page: ft.Page):
     page.bgcolor = ft.Colors.BLACK
 
     # ==========================================
-    # 🔥 APK 打包专用：回归标准写法
+    # 🔥 Flet 0.80.5 修复：移除所有 overlay.append()
+    # FilePicker 和 PermissionHandler 现在都是 Service 类型
+    # 使用内联实例化模式，不再需要挂载到 overlay
     # ==========================================
     
-    # 1. 创建 FilePicker
-    global_file_picker = ft.FilePicker()
+    # 注意：不再需要创建全局的 FilePicker 或 PermissionHandler
+    # 它们将在需要时直接实例化使用
     
-    # 2. 直接挂载到 Overlay (不要盒子，不要 width=0)
-    # Android 引擎通常比 Windows 健壮，这样写才是正规军
-    page.overlay.append(global_file_picker)
-    
-    # 3. 权限处理器
-    global_permission_handler = None
-    try:
-        import flet_permission_handler as fph
-        if page.platform in [ft.PagePlatform.ANDROID, ft.PagePlatform.IOS]:
-            global_permission_handler = fph.PermissionHandler()
-            page.overlay.append(global_permission_handler)
-    except ImportError:
-        pass
-
     page.update()
 
     # ==========================================
@@ -99,13 +87,12 @@ async def main(page: ft.Page):
                 else:
                     await page.push_route("/setup")
             
-            # 🔥 步骤 C: 把"永久"组件传给 View
+            # 🔥 Flet 0.80.5 修复：不再传递 file_picker 和 permission_handler
+            # 这些组件现在在 views.py 中直接实例化使用
             page.views.append(
                 views.get_setup_view(
                     page, 
-                    on_setup_success, 
-                    file_picker=global_file_picker, # 传参
-                    permission_handler=global_permission_handler # 传参
+                    on_setup_success
                 )
             )
 

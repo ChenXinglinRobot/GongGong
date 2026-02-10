@@ -382,36 +382,19 @@ def get_player_view(page: ft.Page, topic: Topic):
 
 
 # ==========================================
-# 4. 设置向导视图 (Setup View)
+# 4. 设置向导视图 (Setup View) - Flet 0.80.5 修复版
 # ==========================================
-
-# views.py 中的 get_setup_view 函数
 
 def get_setup_view(
     page: ft.Page, 
-    on_success: Callable[[str], Awaitable[None]],
-    file_picker: ft.FilePicker,          # <--- 新增：接收主程序的 Picker
-    permission_handler: object = None    # <--- 新增：接收主程序的 Handler
+    on_success: Callable[[str], Awaitable[None]]
 ):
-    """设置向导页面"""
+    """设置向导页面 - 使用 Flet 0.80.5 内联实例化 API"""
     
     # 1. 准备变量 (如果是移动端)
     is_mobile = page.platform in [ft.PagePlatform.ANDROID, ft.PagePlatform.IOS]
 
-    # ========================================================
-    # 🔥 核心修复 A: 把非可视化的服务组件加入 page.overlay
-    # ========================================================
-    # ❌ [删除] 既然是传进来的，就不要在这里创建了
-    # view_file_picker = ft.FilePicker()
-    # page.overlay.append(view_file_picker)
-    # ... import flet_permission_handler ...
-    
-    # 注意：现在使用传入的 file_picker 和 permission_handler
-    # 这些组件应该已经在 main.py 中被添加到 page.overlay 了
-
-    # ========================================================
-    
-    # UI 组件 (保持不变)
+    # UI 组件
     status_text = ft.Text("请选择手机内的'GongGong'视频文件夹", size=18, text_align=ft.TextAlign.CENTER)
     selected_path_text = ft.Text("", size=14, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER)
     select_button = ft.FilledButton(
@@ -425,25 +408,35 @@ def get_setup_view(
     error_text = ft.Text("", color=ft.Colors.RED, text_align=ft.TextAlign.CENTER)
     
     async def handle_select_folder(e):
-        # ... (内部逻辑完全不用变，代码省略以节省篇幅) ...
-        # 这里原来的逻辑都是对的，不需要改
         select_button.disabled = True
         loading_ring.visible = True
         error_text.value = ""
         page.update()
         
         try:
-            if is_mobile and permission_handler:
-                import flet_permission_handler as fph
-                status = await permission_handler.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
-                if status != fph.PermissionStatus.GRANTED:
-                    error_text.value = "存储权限被拒绝"
+            # 🔥 Flet 0.80.5 修复：内联实例化 PermissionHandler
+            if is_mobile:
+                try:
+                    import flet_permission_handler as fph
+                    # 直接实例化使用，不需要添加到 overlay
+                    ph = fph.PermissionHandler()
+                    status = await ph.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
+                    if status != fph.PermissionStatus.GRANTED:
+                        error_text.value = "存储权限被拒绝"
+                        select_button.disabled = False
+                        loading_ring.visible = False
+                        page.update()
+                        return
+                except ImportError:
+                    error_text.value = "权限处理器未安装"
                     select_button.disabled = False
                     loading_ring.visible = False
                     page.update()
                     return
 
-            selected_path = await file_picker.get_directory_path(dialog_title="选择视频文件夹")
+            # 🔥 Flet 0.80.5 修复：内联实例化 FilePicker
+            # 根据文档，FilePicker 现在可以直接实例化使用
+            selected_path = await ft.FilePicker().get_directory_path(dialog_title="选择视频文件夹")
             
             if not selected_path:
                 error_text.value = "已取消"
@@ -452,7 +445,7 @@ def get_setup_view(
                 page.update()
                 return
 
-            # ... 验证逻辑保持不变 ...
+            # 验证文件夹内容
             from pathlib import Path
             path_obj = Path(selected_path)
             has_mp4_files = any(path_obj.glob("**/*.mp4"))
@@ -465,8 +458,7 @@ def get_setup_view(
                 page.update()
                 return
 
-            # 🔥 修复写入逻辑：使用 page.shared_preferences
-            # 不要在这里实例化 ft.SharedPreferences()，也不要 append 到 overlay
+            # 保存路径到共享首选项
             await page.shared_preferences.set("video_root_path", selected_path)
             selected_path_text.value = f"已选择: {selected_path}"
             await on_success(selected_path)
@@ -479,9 +471,6 @@ def get_setup_view(
     
     select_button.on_click = handle_select_folder
     
-    # ========================================================
-    # 🔥 核心修复 B: 从 View.controls 中移除 FilePicker
-    # ========================================================
     return ft.View(
         route="/setup",
         controls=[

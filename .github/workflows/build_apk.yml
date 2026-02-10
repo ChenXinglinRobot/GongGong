@@ -57,8 +57,20 @@ jobs:
         run: |
           uv run flet build apk --verbose
         
+      - name: Verify APK exists
+        run: |
+          if [ ! -f "build/apk/app-release.apk" ]; then
+            echo "❌ APK file not found at build/apk/app-release.apk"
+            ls -la build/ || true
+            ls -la build/apk/ || true
+            exit 1
+          else
+            echo "✅ APK file found: build/apk/app-release.apk"
+            ls -lh "build/apk/app-release.apk"
+          fi
+        
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-official
-          path: "**/*.apk"
+          path: "build/apk/app-release.apk"
