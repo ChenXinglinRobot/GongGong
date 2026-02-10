@@ -14,13 +14,6 @@ dependencies = [
     "flet-permission-handler>=0.80.5",
 ]
 
-[dependency-groups]
-dev = [
-    "flet-cli>=0.80.5",
-    "flet-desktop>=0.80.5",
-    "flet-web>=0.80.5",
-]
-
 # --- Flet 配置核心部分 ---
 [tool.flet]
 org = "com.gonggong"             # 组织标识
@@ -30,6 +23,10 @@ copyright = "Copyright (C) 2026"
 
 # [tool.flet.app] 
 # 注意：删除了 path = "src"，因为这应该由 'flet build apk src' 命令行参数控制
+# ✅ 必须加回这一段！
+# 这告诉 Flet: "配置文件虽然在根目录，但请去 src 目录找 main.py"
+[tool.flet.app]
+path = "src"
 
 # --- 安卓打包专用配置 ---
 [tool.flet.android]

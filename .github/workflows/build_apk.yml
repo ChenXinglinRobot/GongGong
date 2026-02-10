@@ -50,9 +50,12 @@ jobs:
       # 📦 终极简化版打包命令
       # Flet 会自动从 pyproject.toml 读取依赖、权限、描述和元数据
       # 我们只需要指定入口目录 (src) 即可
+      # 📦 修正后的打包命令
+      # 1. 移除了 'src' 参数 -> 默认在当前目录(根目录)查找 pyproject.toml
+      # 2. 因为 pyproject.toml 里配置了 path="src"，它会自动进去找代码
       - name: Build APK
         run: |
-          uv run flet build apk src --verbose
+          uv run flet build apk --verbose
         
       - name: Upload APK
         uses: actions/upload-artifact@v4
