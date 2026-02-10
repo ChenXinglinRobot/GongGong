@@ -4,45 +4,69 @@
 
 ## 📌 项目简介
 
-本项目是一款基于 Flet 框架开发的本地化 Python 应用，通过视频互动的方式为阿尔茨海默症患者提供回忆疗法。系统采用模块化话题选择机制，每个话题包含多个问题，每个问题通过 4 个阶段的视频进行交互式引导（提问 → 重复 → 反馈 → 引导）。
+本项目是一款基于 Flet 0.80.5+ 框架开发的跨平台 Python 应用，通过视频互动的方式为阿尔茨海默症患者提供回忆疗法。系统采用模块化话题选择机制，每个话题包含多个问题，每个问题通过 4 个阶段的视频进行交互式引导（提问 → 重复 → 反馈 → 引导）。
+
+**核心特性**:
+- ✅ **跨平台支持**: Windows、Android、Web
+- ✅ **解耦架构**: 视频文件与安装包分离，可从外部存储加载
+- ✅ **智能设置向导**: 首次启动引导用户选择视频文件夹
+- ✅ **权限管理**: 自动处理 Android 存储权限请求
+- ✅ **沉浸式界面**: 全屏视频播放，手势控制
 
 **当前状态**:
-- ✅ **桌面端 (Windows)**: 运行完美，视频播放正常。
-- ✅ **移动端 (Android)**: **黑屏问题彻底修复**。资源打包与路径加载逻辑已验证通过。
-- ✅ **系统兼容性**: 已解决 Windows 用户名包含空格导致的路径转义错误。
-2026-02-03 更新: 修复了 Windows 平台下的视频播放黑屏问题（通过绝对路径引用绕过解码器限制）。Android 端的路径适配代码已同步更新，正在进行构建测试。
-2026-02-04 更新: 安卓端的路径也改成了强制路径，视频正常播放
+- ✅ **桌面端 (Windows)**: 运行完美，支持从任意文件夹加载视频
+- ✅ **移动端 (Android)**: 支持从手机存储加载视频，权限管理完善
+- ✅ **Flet 0.80.5 兼容**: 已修复所有 "Unknown control" 错误
 ---
 
 ## 🛠 技术栈与核心架构
 
-### 🛠 关键架构更新：全平台统一绝对路径策略 (v0.9.0 Stable)
+### 🛠 解耦架构：外部文件加载系统 (v1.0.0)
 
-针对 Android 和 Windows 端的视频黑屏问题，经历了从“Web 相对路径”到“混合策略”再到“全平台绝对路径”的迭代，最终确立了以下方案：
+应用现在采用完全解耦的架构，视频文件不再需要打包进 APK 安装包。用户可以在首次启动时选择手机或电脑上的任意文件夹作为视频源。
 
-#### ❌ 之前的错误认知 (已废弃)
-- **误区 1**: 认为 Android 端的 Flet 是纯 Web 容器，必须使用 `/topic/...` 或 `/assets/...` 这样的 HTTP 风格相对路径。
-  - **后果**: 播放器无法在本地文件系统中找到资源，导致黑屏。
-- **误区 2**: 认为 `pyproject.toml` 不需要显式指定 `assets_dir`，只要代码里写了就行。
-  - **后果**: GitHub Actions 构建出的 APK 包里只有代码，**没有视频文件**（资源丢失）。
+#### ✅ 核心优势
+- **安装包小巧**: APK 仅包含应用代码，体积大幅减小
+- **灵活更新**: 更新视频内容无需重新安装应用
+- **多设备共享**: 同一视频文件夹可在多台设备间共享
+- **存储优化**: 视频文件可存储在外部 SD 卡或云存储中
 
-#### ✅ 当前的正确方案 (Unified Absolute Path Strategy)
-Flet 在 Android 上本质是运行在本地的 Python 环境，资源被解压到了手机的物理存储中。因此，我们采用**“邻居查找法”**：
+#### 🔧 设置向导流程
+1. **首次启动**: 应用检测到未配置视频路径，自动跳转到设置向导
+2. **权限请求** (Android): 自动请求存储权限
+3. **文件夹选择**: 使用系统文件选择器选择包含视频话题的文件夹
+4. **自动验证**: 系统验证文件夹结构并加载可用话题
+5. **持久化存储**: 选择的路径保存到应用配置中
 
-1.  **物理路径定位**: 
-    - 不依赖 Flet 的资源映射机制，而是利用 `pathlib` 获取 `views.py` 脚本的绝对路径。
-    - 基于脚本位置，寻找同级目录下的 `assets` 文件夹。
-    
-2.  **统一 URI 协议**:
-    - 全平台（Windows/Android）统一将路径转换为 **`file:///`** 协议。
-    - Android 的 ExoPlayer 完美支持此协议读取本地私有目录文件。
+#### 📱 Flet 0.80.5 API 更新
+应用已完全适配 Flet 0.80.5 的新 API：
+- **FilePicker**: 使用内联实例化模式，不再需要 `page.overlay.append()`
+  ```python
+  selected_path = await ft.FilePicker().get_directory_path(dialog_title="选择视频文件夹")
+  ```
+- **PermissionHandler**: 直接实例化使用，无需页面挂载
+  ```python
+  ph = fph.PermissionHandler()
+  status = await ph.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
+  ```
+
+### 🛠 视频路径处理策略
+
+针对 Android 和 Windows 端的视频播放，采用**统一绝对路径策略**：
+
+#### ✅ 当前方案 (Unified Absolute Path Strategy)
+Flet 在 Android 上本质是运行在本地的 Python 环境，因此我们采用**物理路径定位**：
+
+1.  **外部文件加载**: 用户选择的文件夹路径直接作为视频源
+2.  **统一 URI 协议**: 全平台统一将路径转换为 **`file:///`** 协议
+3.  **Android 兼容**: ExoPlayer 完美支持 `file:///` 协议读取本地文件
 
 **核心代码逻辑 (`views.py`)**:
 ```python
-# 获取脚本所在目录的父级，拼接资源路径，并转为 file:/// URI
-current_dir = pathlib.Path(__file__).parent.resolve()
-full_path = current_dir.joinpath(raw_path).resolve()
-return full_path.as_uri()
+def _get_video_src(raw_path: str) -> str:
+    """全平台通用的绝对物理路径策略"""
+    full_path = pathlib.Path(raw_path).resolve()
+    return full_path.as_uri()  # 返回 file:/// URI 格式
 ```
 
 ### 核心依赖
@@ -279,8 +303,6 @@ company = "GongGong Family"     # 公司/团队名
 
 [tool.flet.app]
 path = "src"                    # 源码路径
-# 🔥 关键修正：必须指定 assets 的物理路径，否则视频不会被打入 APK 包！
-assets_dir = "src/assets"
 
 [tool.flet.android]
 split_per_abi = false           # false = 通用包，true = 按架构分包
@@ -288,7 +310,13 @@ split_per_abi = false           # false = 通用包，true = 按架构分包
 [tool.flet.android.permission]
 "android.permission.INTERNET" = true
 "android.permission.READ_EXTERNAL_STORAGE" = true
+"android.permission.WRITE_EXTERNAL_STORAGE" = true
+"android.permission.MANAGE_EXTERNAL_STORAGE" = true  # Android 11+ 核心权限
 ```
+
+**重要变化**:
+- 移除了 `assets_dir` 配置，因为视频文件现在从外部存储加载
+- 增加了 Android 存储权限配置，支持从外部存储读取视频文件
 
 ---
 
@@ -313,6 +341,23 @@ ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
 
 ## 📝 问题修复记录
 
+### [已解决] Flet 0.80.5 "Unknown control" 错误 (Windows & Android)
+- **症状**: 
+  - Windows PC: `ft.FilePicker` 报 "Unknown control: filepicker"
+  - Android APK: `flet_permission_handler` 报 "Unknown control: permission_handler"
+- **根本原因**: Flet 0.80.5 API 变化，`FilePicker` 和 `PermissionHandler` 现在都是 `Service` 类型，不再需要添加到 `page.overlay`
+- **修复方案**: 
+  1. 重写 `main.py`，移除所有 `page.overlay.append()` 调用
+  2. 重写 `views.py`，改用内联实例化 API：
+     ```python
+     # FilePicker - 直接实例化使用
+     selected_path = await ft.FilePicker().get_directory_path()
+     
+     # PermissionHandler - 直接实例化使用
+     ph = fph.PermissionHandler()
+     status = await ph.request(permission)
+     ```
+
 ### [已解决] 视频播放黑屏 (Android & Windows)
 - **症状**: 界面UI加载正常，但视频区域黑屏，无报错或报 `No such file`。
 - **根本原因**: 
@@ -328,25 +373,43 @@ ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
 
 ## 📝 更新日志
 
+### 2026-02-10: 解耦架构与 Flet 0.80.5 修复
+- **解耦架构**:
+  - 视频文件不再打包进 APK，改为从外部存储加载
+  - 安装包体积大幅减小，更新视频内容无需重新安装应用
+  - 支持从手机/电脑任意文件夹加载视频文件
+- **智能设置向导**:
+  - 首次启动自动引导用户选择视频文件夹
+  - Android 自动请求存储权限
+  - 自动验证文件夹结构并加载可用话题
+- **Flet 0.80.5 API 适配**:
+  - 修复 "Unknown control: filepicker" 错误（Windows）
+  - 修复 "Unknown control: permission_handler" 错误（Android）
+  - 改用内联实例化 API：`await ft.FilePicker().get_directory_path()`
+  - 移除所有 `page.overlay.append()` 调用
+- **权限管理优化**:
+  - 自动处理 Android 存储权限请求
+  - 支持 Android 11+ 的 `MANAGE_EXTERNAL_STORAGE` 权限
+
 ### 2026-02-04: UI 优化与视频播放器改进
 - **全局窗口设置**:
   - 移除页面内边距 (`page.padding = 0`)，实现全沉浸式体验
   - 设置背景色为黑色 (`page.bgcolor = ft.Colors.BLACK`)，提供影院式边框
   - 确保不创建默认的系统应用栏
 - **菜单视图文本更新**:
-  - 将副标题文本格式从“包含 {count} 个环节”改为“包含 {count} 个问题”
+  - 将副标题文本格式从"包含 {count} 个环节"改为"包含 {count} 个问题"
 - **播放器视图重构**:
-  - 使用三层 Stack 架构实现沉浸式覆盖：
+  - 使用三层 Stack 架构实现沉浸式覆盖:
     1. **底层**: 视频层（`ft.Container` + `ftv.Video`）
     2. **中层**: 手势检测层（`ft.GestureDetector`，支持单击切换覆盖层、双击暂停/播放）
     3. **顶层**: UI 覆盖层（`ft.Container`，包含自定义 AppBar 和底部控制栏）
   - 修复菜单隐藏逻辑：为透明覆盖层添加 `on_click=toggle_overlay`，确保点击空白区域也能关闭菜单
   - 修复双击暂停功能：使用官方 `play_or_pause()` API
-  - 修复 Android 视频质量和宽高比：
+  - 修复 Android 视频质量和宽高比:
     - 移除无效的 `aspect_ratio` 属性
     - 设置 `fit=ft.BoxFit.CONTAIN` 确保 16:9 视频适配屏幕（带黑边，无变形）
     - 将 `filter_quality` 从 `HIGH` 改为 `MEDIUM`，提升 Android 设备清晰度
-  - 修复 SafeArea 放置：
+  - 修复 SafeArea 放置:
     - 从根 View 控件中移除 `ft.SafeArea`
     - 仅在 UI 覆盖层内部添加 `ft.SafeArea`
     - 视频堆叠层现在可以触及物理屏幕边缘
