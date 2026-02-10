@@ -44,18 +44,15 @@ jobs:
       # 2. 声明 Android 存储权限 (否则 App 无法读取视频)
       # 3. 强制包含 flet_video 和 flet_permission_handler
       # 📦 修正后的打包命令 (根据官方文档调整)
+      # 📦 修正后的打包命令 (严格遵循官方文档)
+      # 1. 移除了不存在的 --include-packages (Flet 会自动打包依赖)
+      # 2. 修正了安卓权限写法 (必须加 =true)
+      # 📦 终极简化版打包命令
+      # Flet 会自动从 pyproject.toml 读取依赖、权限、描述和元数据
+      # 我们只需要指定入口目录 (src) 即可
       - name: Build APK
         run: |
-          # 1. src: 告诉 Flet 您的 main.py 在 src 文件夹里
-          # 2. --android-permissions: 文档指定的安卓专用权限参数
-          uv run flet build apk src \
-            --verbose \
-            --project "Gonggong" \
-            --description "阿尔兹海默症回忆疗法" \
-            --android-permissions android.permission.READ_EXTERNAL_STORAGE \
-            --android-permissions android.permission.WRITE_EXTERNAL_STORAGE \
-            --android-permissions android.permission.MANAGE_EXTERNAL_STORAGE \
-            --include-packages flet_video,flet_permission_handler
+          uv run flet build apk src --verbose
         
       - name: Upload APK
         uses: actions/upload-artifact@v4
