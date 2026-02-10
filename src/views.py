@@ -13,12 +13,10 @@ import os
 def _get_video_src(raw_path: str) -> str:
     """
     全平台通用的绝对物理路径策略
-    无论在 Windows 还是 Android，直接读取脚本所在目录的物理文件
+    处理外部视频文件的路径转换
     """
-    # 获取当前脚本 (views.py) 的父目录作为基准目录
-    current_dir = pathlib.Path(__file__).parent.resolve()
-    # 使用 current_dir.joinpath(raw_path) 拼接出文件的完整绝对路径
-    full_path = current_dir.joinpath(raw_path).resolve()
+    # raw_path 已经是绝对路径（来自 data_loader）
+    full_path = pathlib.Path(raw_path).resolve()
     # 打印 DEBUG 日志到控制台
     print(f"DEBUG: Target={full_path} | Exists={full_path.exists()}")
     # 返回 URI 格式的路径 (file:///...)，这对 Android 的 ExoPlayer 最安全
@@ -40,7 +38,7 @@ def get_menu_view(page: ft.Page, topics: List[Topic], on_topic_click: Callable[[
                     [
                         ft.Icon(ft.Icons.VIDEO_LIBRARY, size=40),
                         ft.Text(topic.name, size=20, weight=ft.FontWeight.BOLD),
-                        ft.Text(f"包含 {len(topic.questions)} 个环节", size=12),
+                        ft.Text(f"包含 {len(topic.questions)} 个问题", size=12),
                     ],
                     alignment=ft.MainAxisAlignment.CENTER,
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -87,29 +85,17 @@ def get_menu_view(page: ft.Page, topics: List[Topic], on_topic_click: Callable[[
     )
 
 # ==========================================
-# 3. 播放器视图 (Player View - Core Logic)
+# 3. 播放器视图 (Player View - Stack 重构版)
 # ==========================================
 
 def get_player_view(page: ft.Page, topic: Topic):
-    """核心播放页面"""
+    """核心播放页面 - 使用 Stack 三层架构实现沉浸式覆盖"""
     current_q_index = 0
     questions: List[Question] = topic.questions
     total_questions = len(questions)
 
     # --- UI Controls Definition ---
     
-    # 新增调试控件
-    debug_text = ft.Text(value="初始化...", color=ft.Colors.RED, size=12, selectable=True)
-    
-    # [关键修改] 定义一个容器，而不是直接定义 Video
-    # 稍后我们将把 Video 组件动态塞入这个容器
-    video_container = ft.Container(
-        expand=2, 
-        bgcolor=ft.Colors.BLACK,
-        alignment=ft.Alignment(0, 0),
-        content=ft.ProgressRing() # 初始显示加载圈
-    )
-
     # 按钮定义
     btn_repeat = ft.FilledButton(
         content=ft.Text("听不清 / 再说一遍"),
@@ -172,7 +158,116 @@ def get_player_view(page: ft.Page, topic: Topic):
         alignment=ft.MainAxisAlignment.CENTER,
     )
 
-    title_text = ft.Text(f"当前进度: 1 / {total_questions}", size=18)
+    # 进度文本
+    title_text = ft.Text(f"当前进度: 1 / {total_questions}", size=12, color=ft.Colors.WHITE70)
+    
+    # 视频容器 - 用于动态更新视频
+    video_container = ft.Container(
+        bgcolor=ft.Colors.BLACK,
+        alignment=ft.Alignment(0, 0),  # 居中对齐
+        content=ft.ProgressRing()  # 初始显示加载圈
+    )
+    
+    # UI 覆盖层可见性状态
+    overlay_visible = False
+    
+    # --- 手势处理函数 ---
+    
+    async def toggle_overlay(e):
+        nonlocal overlay_visible
+        overlay_visible = not overlay_visible
+        overlay_container.visible = overlay_visible
+        page.update()
+    
+    async def toggle_play_pause(e):
+        # 切换视频播放/暂停（使用官方 API）
+        if video_container.content:
+            await video_container.content.play_or_pause()
+    
+    # --- Layer 3: UI 覆盖层 (Top) ---
+    # 先创建返回按钮，以便绑定事件
+    back_button = ft.IconButton(
+        ft.Icons.ARROW_BACK,
+        on_click=None,  # 稍后绑定
+        icon_color=ft.Colors.WHITE
+    )
+    
+    overlay_container = ft.Container(
+        left=0,
+        top=0,
+        right=0,
+        bottom=0,
+        visible=False,  # 初始隐藏
+        on_click=toggle_overlay,
+        content=ft.SafeArea(
+            content=ft.Column(
+                [
+                    # A. 顶部自定义 AppBar
+                    ft.Container(
+                        bgcolor="#80000000",  # 半透明黑色
+                        padding=ft.padding.only(top=30, left=15, right=15, bottom=10),
+                        content=ft.Row(
+                            [
+                                # 返回按钮
+                                back_button,
+                                # 信息列
+                                ft.Column(
+                                    [
+                                        ft.Text(
+                                            topic.name,
+                                            color=ft.Colors.WHITE,
+                                            size=16,
+                                            weight=ft.FontWeight.BOLD
+                                        ),
+                                        title_text
+                                    ],
+                                    spacing=2
+                                ),
+                                # 占位器
+                                ft.Container(expand=True)
+                            ],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                        )
+                    ),
+                    # 占位器
+                    ft.Container(expand=True),
+                    # B. 底部控制栏
+                    ft.Container(
+                        padding=20,
+                        content=controls_row
+                    )
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                expand=True
+            )
+        )
+    )
+    
+    # --- Layer 2: 手势检测层 (Middle) ---
+    gesture_detector = ft.GestureDetector(
+        left=0,
+        top=0,
+        right=0,
+        bottom=0,
+        on_tap=None,  # 稍后绑定
+        on_double_tap=None  # 稍后绑定
+    )
+    
+    # --- Layer 1: 视频层 (Bottom) ---
+    # 视频层容器将在初始化时设置
+    
+    # --- 创建 Stack ---
+    stack_layers = ft.Stack(
+        expand=True,
+        controls=[
+            # Layer 1: 视频层 (Bottom)
+            video_container,
+            # Layer 2: 手势检测层 (Middle)
+            gesture_detector,
+            # Layer 3: UI 覆盖层 (Top)
+            overlay_container
+        ]
+    )
 
     # --- Logic ---
 
@@ -188,33 +283,19 @@ def get_player_view(page: ft.Page, topic: Topic):
             src = _get_video_src(raw_path)
             print(f"Switching video to: {src}")
             
-            # 更新调试信息：将 URI 还原为普通路径，检测文件是否存在
-            # 去掉 file:/// 前缀
-            if src.startswith('file:///'):
-                file_path = src[8:]  # 移除 'file:///'
-            else:
-                file_path = src
-            exists = os.path.exists(file_path)
-            debug_text.value = f"文件存在: {exists}\n路径: {file_path}"
-            debug_text.update()
-            
-            # [关键修复] 暴力重绘策略
-            # 不更新旧 Video，而是创建一个全新的 Video 组件
-            # 这样能强制浏览器/Android 重新加载资源
+            # 创建新的 Video 组件
             new_player = ftv.Video(
                 expand=True,
-                autoplay=True,      # 新组件创建即播放
+                autoplay=True,
                 show_controls=False,
                 playlist=[ftv.VideoMedia(src)],
-                aspect_ratio=16/9,
-                filter_quality=ft.FilterQuality.HIGH,
-                # 即使是新组件，最好也加个 key 确保唯一性 (可选，但推荐)
+                fit=ft.BoxFit.CONTAIN,
+                filter_quality=ft.FilterQuality.MEDIUM,
                 key=f"video_{q.id}_{state_id}_{current_q_index}"
             )
             
             # 将容器内容替换为新播放器
             video_container.content = new_player
-            # 注意：新组件不需要 await video.play()，因为有 autoplay=True
         else:
             print(f"Error: Missing video for State {state_id} in Question {q.id}")
             video_container.content = ft.Text("视频缺失", color=ft.Colors.RED)
@@ -232,7 +313,7 @@ def get_player_view(page: ft.Page, topic: Topic):
             controls_row.controls = [btn_retry, btn_skip]
 
         page.update()
-
+    
     # --- Handlers ---
     
     async def on_repeat_click(e): await update_ui_state(1)
@@ -265,6 +346,15 @@ def get_player_view(page: ft.Page, topic: Topic):
     btn_skip.on_click = on_next_or_skip_click
     btn_finish.on_click = on_finish_click
 
+    # --- 绑定事件处理函数 ---
+    
+    # 绑定手势事件
+    gesture_detector.on_tap = toggle_overlay
+    gesture_detector.on_double_tap = toggle_play_pause
+    
+    # 绑定返回按钮事件
+    back_button.on_click = on_back_nav_click
+    
     # --- Initialization ---
     
     if total_questions > 0:
@@ -278,8 +368,8 @@ def get_player_view(page: ft.Page, topic: Topic):
                 autoplay=True,
                 show_controls=False,
                 playlist=[ftv.VideoMedia(init_src)],
-                aspect_ratio=16/9,
-                filter_quality=ft.FilterQuality.HIGH
+                fit=ft.BoxFit.CONTAIN,
+                filter_quality=ft.FilterQuality.MEDIUM
             )
         
         controls_row.controls = [btn_repeat, btn_forget, btn_correct]
@@ -287,42 +377,120 @@ def get_player_view(page: ft.Page, topic: Topic):
     return ft.View(
         route=f"/play/{topic.id}",
         padding=0,
+        controls=[stack_layers]
+    )
+
+
+# ==========================================
+# 4. 设置向导视图 (Setup View) - Flet 0.80.5 修复版
+# ==========================================
+
+def get_setup_view(
+    page: ft.Page, 
+    on_success: Callable[[str], Awaitable[None]]
+):
+    """设置向导页面 - 使用 Flet 0.80.5 内联实例化 API"""
+    
+    # 1. 准备变量 (如果是移动端)
+    is_mobile = page.platform in [ft.PagePlatform.ANDROID, ft.PagePlatform.IOS]
+
+    # UI 组件
+    status_text = ft.Text("请选择手机内的'GongGong'视频文件夹", size=18, text_align=ft.TextAlign.CENTER)
+    selected_path_text = ft.Text("", size=14, color=ft.Colors.GREY_600, text_align=ft.TextAlign.CENTER)
+    select_button = ft.FilledButton(
+        content=ft.Row(
+            [ft.Icon(ft.Icons.FOLDER_OPEN), ft.Text("授权并选择文件夹", size=16)],
+            alignment=ft.MainAxisAlignment.CENTER, spacing=10
+        ),
+        height=60, width=300,
+    )
+    loading_ring = ft.ProgressRing(visible=False)
+    error_text = ft.Text("", color=ft.Colors.RED, text_align=ft.TextAlign.CENTER)
+    
+    async def handle_select_folder(e):
+        select_button.disabled = True
+        loading_ring.visible = True
+        error_text.value = ""
+        page.update()
+        
+        try:
+            # 🔥 Flet 0.80.5 修复：内联实例化 PermissionHandler
+            if is_mobile:
+                try:
+                    import flet_permission_handler as fph
+                    # 直接实例化使用，不需要添加到 overlay
+                    ph = fph.PermissionHandler()
+                    status = await ph.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
+                    if status != fph.PermissionStatus.GRANTED:
+                        error_text.value = "存储权限被拒绝"
+                        select_button.disabled = False
+                        loading_ring.visible = False
+                        page.update()
+                        return
+                except ImportError:
+                    error_text.value = "权限处理器未安装"
+                    select_button.disabled = False
+                    loading_ring.visible = False
+                    page.update()
+                    return
+
+            # 🔥 Flet 0.80.5 修复：内联实例化 FilePicker
+            # 根据文档，FilePicker 现在可以直接实例化使用
+            selected_path = await ft.FilePicker().get_directory_path(dialog_title="选择视频文件夹")
+            
+            if not selected_path:
+                error_text.value = "已取消"
+                select_button.disabled = False
+                loading_ring.visible = False
+                page.update()
+                return
+
+            # 验证文件夹内容
+            from pathlib import Path
+            path_obj = Path(selected_path)
+            has_mp4_files = any(path_obj.glob("**/*.mp4"))
+            has_topic_folders = any(d.name.startswith("topic_") and d.is_dir() for d in path_obj.iterdir())
+            
+            if not (has_mp4_files or has_topic_folders):
+                error_text.value = "文件夹无效（未找到视频）"
+                select_button.disabled = False
+                loading_ring.visible = False
+                page.update()
+                return
+
+            # 保存路径到共享首选项
+            await page.shared_preferences.set("video_root_path", selected_path)
+            selected_path_text.value = f"已选择: {selected_path}"
+            await on_success(selected_path)
+
+        except Exception as ex:
+            error_text.value = f"错误: {str(ex)}"
+            select_button.disabled = False
+            loading_ring.visible = False
+            page.update()
+    
+    select_button.on_click = handle_select_folder
+    
+    return ft.View(
+        route="/setup",
         controls=[
             ft.SafeArea(
                 content=ft.Column(
                     [
-                        ft.Container(
-                            content=ft.Row(
-                                [
-                                    ft.IconButton(ft.Icons.ARROW_BACK, on_click=on_back_nav_click),
-                                    ft.Text(f"正在进行: {topic.name}", size=20, weight=ft.FontWeight.BOLD),
-                                    ft.Container(expand=True),
-                                    title_text
-                                ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                            ),
-                            padding=10
-                        ),
-                        # 调试信息容器（黄色背景）
-                        ft.Container(
-                            content=debug_text,
-                            bgcolor=ft.Colors.YELLOW_100,
-                            padding=5,
-                            border_radius=5,
-                            margin=ft.margin.only(bottom=5)
-                        ),
-                        # [Critical] 这里放置的是 video_container，不是 video_player
-                        video_container,
-                        ft.Container(
-                            content=controls_row,
-                            expand=1,
-                            padding=20,
-                            bgcolor=ft.Colors.GREY_100,
-                            alignment=ft.Alignment(0, 0)
-                        )
+                        ft.Container(height=50),
+                        ft.Icon(ft.Icons.VIDEO_SETTINGS, size=80, color=ft.Colors.BLUE_400),
+                        status_text,
+                        ft.Container(height=10),
+                        selected_path_text,
+                        ft.Container(height=30),
+                        select_button,
+                        ft.Container(height=20),
+                        loading_ring,
+                        error_text,
                     ],
-                    expand=True,
-                    spacing=0
+                    alignment=ft.MainAxisAlignment.START,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    expand=True
                 ),
                 expand=True
             )

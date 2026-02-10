@@ -39,16 +39,38 @@ jobs:
       - name: Clean Build
         run: rm -rf build/ dist/
 
-      # 📦 官方标准打包命令
-      # 1. 没有任何位置参数 (默认当前目录)，这样它能读到 pyproject.toml
-      # 2. --project 保持原样防止乱码
-      # 3. 依赖会自动从 pyproject.toml 读取！
+      # 📦 修改后的打包命令
+      # 1. 指定 "src" 目录作为入口 (因为 main.py 在 src 里)
+      # 2. 声明 Android 存储权限 (否则 App 无法读取视频)
+      # 3. 强制包含 flet_video 和 flet_permission_handler
+      # 📦 修正后的打包命令 (根据官方文档调整)
+      # 📦 修正后的打包命令 (严格遵循官方文档)
+      # 1. 移除了不存在的 --include-packages (Flet 会自动打包依赖)
+      # 2. 修正了安卓权限写法 (必须加 =true)
+      # 📦 终极简化版打包命令
+      # Flet 会自动从 pyproject.toml 读取依赖、权限、描述和元数据
+      # 我们只需要指定入口目录 (src) 即可
+      # 📦 修正后的打包命令
+      # 1. 移除了 'src' 参数 -> 默认在当前目录(根目录)查找 pyproject.toml
+      # 2. 因为 pyproject.toml 里配置了 path="src"，它会自动进去找代码
       - name: Build APK
         run: |
-          uv run flet build apk --verbose --project "Gonggong"
+          uv run flet build apk --verbose
+        
+      - name: Verify APK exists
+        run: |
+          if [ ! -f "build/apk/app-release.apk" ]; then
+            echo "❌ APK file not found at build/apk/app-release.apk"
+            ls -la build/ || true
+            ls -la build/apk/ || true
+            exit 1
+          else
+            echo "✅ APK file found: build/apk/app-release.apk"
+            ls -lh "build/apk/app-release.apk"
+          fi
         
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-official
-          path: "**/*.apk"
+          path: "build/apk/app-release.apk"

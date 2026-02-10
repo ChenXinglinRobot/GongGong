@@ -33,23 +33,41 @@ class Topic:
 # 2. Scanning & Parsing Logic
 # ==========================================
 
-def load_topics(assets_dir: str) -> List[Topic]:
+def load_topics(root_path: str) -> List[Topic]:
     """
     扫描指定目录，构建 Topic 和 Question 对象列表。
+    
+    参数:
+        root_path: 视频文件夹的根路径
+        
+    返回:
+        Topic 对象列表，如果路径无效或没有找到视频则返回空列表
     """
     topics: List[Topic] = []
-    base_path = Path(assets_dir)
+    base_path = Path(root_path)
 
     if not base_path.exists():
-        print(f"Warning: Assets directory '{assets_dir}' not found.")
+        print(f"警告: 视频目录 '{root_path}' 不存在。")
         return []
 
-    # 遍历 assets 下的所有子文件夹 (每个都是一个 Topic)
+    # 验证路径有效性：检查是否有 .mp4 文件或 topic_ 文件夹
+    has_mp4_files = any(base_path.glob("**/*.mp4"))
+    has_topic_folders = any(d.name.startswith("topic_") and d.is_dir() for d in base_path.iterdir())
+    
+    if not (has_mp4_files or has_topic_folders):
+        print(f"警告: 选择的文件夹 '{root_path}' 似乎不包含视频资源（未找到 .mp4 文件或 topic_ 文件夹）。")
+        return []
+
+    # 遍历根路径下的所有子文件夹 (每个都是一个 Topic)
     for topic_dir in base_path.iterdir():
         if not topic_dir.is_dir():
             continue
 
         topic_id = topic_dir.name
+        # 只处理以 "topic_" 开头的文件夹
+        if not topic_id.startswith("topic_"):
+            continue
+            
         # 简单的名称处理：去掉 "topic_" 前缀并大写首字母，提升可读性
         # 例如: "topic_family" -> "Family"
         display_name = topic_id.replace("topic_", "").replace("_", " ").title()
@@ -103,7 +121,10 @@ def load_topics(assets_dir: str) -> List[Topic]:
                 questions=valid_questions
             ))
 
-    print(f"数据加载完成: 共加载 {len(topics)} 个话题。")
+    if topics:
+        print(f"数据加载完成: 共加载 {len(topics)} 个话题。")
+    else:
+        print(f"数据加载完成: 在 '{root_path}' 中未找到有效的话题数据。")
     return topics
 
 
@@ -115,7 +136,7 @@ if __name__ == "__main__":
     # 模拟测试
     print("--- 开始测试 Data Loader ---")
     
-    # 假设你的目录结构已经在 assets 中建立
+    # 测试当前 assets 目录
     all_topics = load_topics("assets")
 
     if all_topics:

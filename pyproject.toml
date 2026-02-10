@@ -7,35 +7,34 @@ requires-python = ">=3.10"
 authors = [
     { name = "GongGong Developer", email = "1641782731@qq.com" }
 ]
+# 核心依赖 (Build 时会自动安装这些)
 dependencies = [
     "flet>=0.80.5",
     "flet-video>=0.80.5",
+    "flet-permission-handler>=0.80.5",
 ]
 
-[dependency-groups]
-dev = [
-    "flet-cli>=0.80.5",
-    "flet-desktop>=0.80.5",
-    "flet-web>=0.80.5",
-]
-
-# --- Flet 配置核心部分 (New Style) ---
+# --- Flet 配置核心部分 ---
 [tool.flet]
-org = "com.gonggong"             # 对应以前的 organization
-product = "公公的留声机"           # 对应以前的 product_name
-company = "GongGong Family"      # 可选：公司/团队名
+org = "com.gonggong"             # 组织标识
+product = "公公的留声机"           # 应用显示名称
+company = "GongGong Family"      # 公司/团队名
 copyright = "Copyright (C) 2026"
 
-# 指定 App 代码路径 (uv 生成的默认是 src)
+# [tool.flet.app] 
+# 注意：删除了 path = "src"，因为这应该由 'flet build apk src' 命令行参数控制
+# ✅ 必须加回这一段！
+# 这告诉 Flet: "配置文件虽然在根目录，但请去 src 目录找 main.py"
 [tool.flet.app]
 path = "src"
-assets_dir = "src/assets"  # <--- 加上这一行！告诉它：资源在这里！
 
 # --- 安卓打包专用配置 ---
 [tool.flet.android]
-split_per_abi = false  # true = 生成两个小包(v7a/v8a)，false = 生成一个通用大包
+split_per_abi = false  # false = 生成一个通用 APK (推荐用于测试)
 
-# 安卓权限配置 (保持不变，Flet 0.80 依然沿用此格式)
+# --- 关键：安卓权限配置 ---
 [tool.flet.android.permission]
 "android.permission.INTERNET" = true
 "android.permission.READ_EXTERNAL_STORAGE" = true
+"android.permission.WRITE_EXTERNAL_STORAGE" = true
+"android.permission.MANAGE_EXTERNAL_STORAGE" = true  # 针对 Android 11+ 的核心权限
