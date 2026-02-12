@@ -1,15 +1,9 @@
 # main.py
 import flet as ft
-import data_loader
-import views
 import asyncio
 from pathlib import Path
-
-# 尝试导入权限处理器
-try:
-    import flet_permission_handler as fph
-except ImportError:
-    fph = None
+import data_loader
+import views
 
 async def main(page: ft.Page):
     # 1. 初始化设置

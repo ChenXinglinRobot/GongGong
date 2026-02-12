@@ -4,9 +4,10 @@
 
 ## 📌 项目简介
 
-本项目是一款基于 Flet 0.80.5+ 框架开发的跨平台 Python 应用，通过视频互动的方式为阿尔茨海默症患者提供回忆疗法。系统采用模块化话题选择机制，每个话题包含多个问题，每个问题通过 4 个阶段的视频进行交互式引导（提问 → 重复 → 反馈 → 引导）。
+本项目是一款基于 Flet 0.80.5+ 框架开发的跨平台 Python 应用，通过视频互动的方式为阿尔茨海默症患者提供回忆疗法。系统采用**模块化架构**和话题选择机制，每个话题包含多个问题，每个问题通过 4 个阶段的视频进行交互式引导（提问 → 重复 → 反馈 → 引导）。
 
 **核心特性**:
+- ✅ **模块化架构**: 视图层分解为独立模块，提高代码可维护性
 - ✅ **跨平台支持**: Windows、Android、Web
 - ✅ **解耦架构**: 视频文件与安装包分离，可从外部存储加载
 - ✅ **智能设置向导**: 首次启动引导用户选择视频文件夹
@@ -15,15 +16,155 @@
 
 **当前状态**:
 - ✅ **桌面端 (Windows)**: 运行完美，支持从任意文件夹加载视频
-- ✅ **移动端 (Android)**: 支持从手机存储加载视频，权限管理完善
+- 🔄 **移动端 (Android)**: 待测试（理论上支持从手机存储加载视频）
 - ✅ **Flet 0.80.5 兼容**: 已修复所有 "Unknown control" 错误
+
 ---
 
-## 🛠 技术栈与核心架构
+## 🏗️ 项目结构（模块化架构）
 
-### 🛠 解耦架构：外部文件加载系统 (v1.0.0)
+本项目采用模块化架构，将原本单一的 `views.py` 分解为独立的视图模块，提高了代码的可维护性和可扩展性。
 
-应用现在采用完全解耦的架构，视频文件不再需要打包进 APK 安装包。用户可以在首次启动时选择手机或电脑上的任意文件夹作为视频源。
+```text
+GongGong/
+│
+├── .github/workflows/          # CI/CD 自动化
+│   └── build_apk.yml           # GitHub Actions 打包配置
+│
+├── src/                        # 源代码根目录
+│   ├── main.py                 # 应用入口：生命周期 & 路由逻辑
+│   ├── config.py               # [NEW] 配置常量模块（颜色、尺寸等）
+│   ├── utils.py                # [NEW] 工具函数模块（路径处理等）
+│   ├── data_loader.py          # 数据层：扫描 assets 并构建 Topic 对象
+│   ├── create_files.py         # 工具脚本
+│   │
+│   └── views/                  # [NEW] 视图层包（模块化分解）
+│       ├── __init__.py         # 导出所有视图函数
+│       ├── menu.py             # 菜单视图：话题选择界面
+│       ├── setup.py            # 设置向导视图：首次启动配置
+│       └── player.py           # 播放器视图：核心视频交互逻辑
+│
+├── pyproject.toml              # 核心配置：依赖、构建参数、权限
+├── uv.lock                     # 依赖锁定文件（自动生成）
+├── .gitignore                  # Git 忽略规则
+└── README.md                   # 本文档
+```
+
+**架构优势**:
+- **关注点分离**: 每个视图模块专注于单一功能
+- **易于维护**: 修改一个视图不会影响其他模块
+- **代码复用**: 视图函数可以独立测试和重用
+- **团队协作**: 不同开发者可以并行开发不同视图
+
+---
+
+## 🚀 快速开始
+
+### 本地运行
+
+#### 1. 安装依赖（推荐使用 uv）
+
+```bash
+# 安装 uv（如果尚未安装）
+pip install uv
+
+# 同步依赖
+uv sync
+```
+
+#### 2. 运行应用（模块化架构的正确方式）
+
+```bash
+# 从项目根目录运行（推荐）
+uv run flet run src/main.py
+
+# 或者使用完整路径
+flet run src/main.py
+```
+
+#### 3. Web 模式运行
+
+```bash
+uv run flet run src/main.py --web
+```
+
+### ⚠️ 重要提示：模块化架构的运行方式
+
+由于项目采用了模块化架构，**必须**从项目根目录运行 `flet run src/main.py`。这是因为：
+
+1. **相对导入**: 模块之间使用相对导入（如 `from data_loader import Topic`）
+2. **Python 路径**: 需要确保 `src` 目录在 Python 路径中
+3. **Flet 上下文**: Flet 需要正确的项目上下文来加载资源
+
+**错误运行方式**:
+```bash
+# ❌ 错误：会导致 ModuleNotFoundError
+cd src
+flet run main.py
+
+# ❌ 错误：缺少项目上下文
+python src/main.py
+```
+
+---
+
+## 🛠️ 技术架构
+
+### 视图层分解（模块化设计）
+
+原本单一的 `views.py` 文件已被分解为三个独立的模块：
+
+1. **`menu.py`** - 菜单视图
+   - 显示所有可用话题
+   - 提供话题选择界面
+   - 处理话题点击事件
+
+2. **`setup.py`** - 设置向导视图
+   - 首次启动引导用户选择视频文件夹
+   - 处理 Android 存储权限请求
+   - 验证文件夹结构并保存配置
+
+3. **`player.py`** - 播放器视图
+   - 核心视频播放和交互逻辑
+   - 实现 4 阶段状态机
+   - 处理手势控制和 UI 覆盖层
+
+**分解优势**:
+- **可维护性**: 每个文件约 200-300 行代码，易于理解和修改
+- **可测试性**: 可以独立测试每个视图模块
+- **可扩展性**: 添加新视图只需创建新模块，无需修改现有代码
+- **团队协作**: 不同开发者可以并行开发不同视图
+
+### 状态机（4 阶段视频交互逻辑）
+
+播放器视图针对每个 `Question` 对象管理 4 个状态（对应 `type_id`）：
+
+#### State 0: Query（提问）
+- **动作**: 自动播放 `Video[0]`（初始提问）
+- **用户操作**:
+  - 🔵 **听不清/再说一遍** → 转到 State 1
+  - 🟢 **回答正确** → 转到 State 2
+  - 🟠 **忘记了** → 转到 State 3
+
+#### State 1: Repeat（重复）
+- **动作**: 播放 `Video[1]`（温和重复）
+- **用户操作**: 同 State 0（可继续回答或再次请求重复）
+
+#### State 2: Correct（正确反馈）
+- **动作**: 播放 `Video[2]`（正向鼓励）
+- **用户操作**:
+  - 🟢 **下一题** → 加载下一个 Question（返回 State 0）
+  - 🏠 **返回菜单**（如果是最后一题）
+
+#### State 3: Guide（引导）
+- **动作**: 播放 `Video[3]`（引导/安慰）
+- **用户操作**:
+  - 🔄 **重试** → 重新加载当前 Question（返回 State 0）
+  - ⏭️ **跳过** → 加载下一个 Question（返回 State 0）
+
+### 解耦架构：外部文件加载系统
+
+应用采用完全解耦的架构，视频文件不再需要打包进 APK 安装包。用户可以在首次启动时选择手机或电脑上的任意文件夹作为视频源。
 
 #### ✅ 核心优势
 - **安装包小巧**: APK 仅包含应用代码，体积大幅减小
@@ -38,110 +179,11 @@
 4. **自动验证**: 系统验证文件夹结构并加载可用话题
 5. **持久化存储**: 选择的路径保存到应用配置中
 
-#### 📱 Flet 0.80.5 API 更新
-应用已完全适配 Flet 0.80.5 的新 API：
-- **FilePicker**: 使用内联实例化模式，不再需要 `page.overlay.append()`
-  ```python
-  selected_path = await ft.FilePicker().get_directory_path(dialog_title="选择视频文件夹")
-  ```
-- **PermissionHandler**: 直接实例化使用，无需页面挂载
-  ```python
-  ph = fph.PermissionHandler()
-  status = await ph.request(fph.Permission.MANAGE_EXTERNAL_STORAGE)
-  ```
-
-### 🛠 视频路径处理策略
-
-针对 Android 和 Windows 端的视频播放，采用**统一绝对路径策略**：
-
-#### ✅ 当前方案 (Unified Absolute Path Strategy)
-Flet 在 Android 上本质是运行在本地的 Python 环境，因此我们采用**物理路径定位**：
-
-1.  **外部文件加载**: 用户选择的文件夹路径直接作为视频源
-2.  **统一 URI 协议**: 全平台统一将路径转换为 **`file:///`** 协议
-3.  **Android 兼容**: ExoPlayer 完美支持 `file:///` 协议读取本地文件
-
-**核心代码逻辑 (`views.py`)**:
-```python
-def _get_video_src(raw_path: str) -> str:
-    """全平台通用的绝对物理路径策略"""
-    full_path = pathlib.Path(raw_path).resolve()
-    return full_path.as_uri()  # 返回 file:/// URI 格式
-```
-
 ### 核心依赖
 - **Python**: 3.10+
 - **GUI 框架**: Flet 0.80.5+（基于 2026 年最新版本）
 - **视频组件**: flet-video 0.80.5+
 - **构建工具**: uv (依赖管理) + GitHub Actions (CI/CD)
-
-### 关键语法规范（基于 Flet 0.80+）
-
-> ⚠️ Flet 更新极快，以下规范基于 2026 年最新版本，如有疑问请查阅官方文档
-
-| 类别 | 规范 | 示例 |
-|------|------|------|
-| **入口点** | `ft.run(main, assets_dir="assets")` | 从 `src/` 上下文执行 |
-| **导航** | 必须使用 `await page.push_route(route)` | 异步函数内使用，必须 await |
-| **按钮文本** | `ft.FilledButton(content=ft.Text("..."))` | ❌ 无 `text` 参数 |
-| **图标** | `ft.Icons.XXX`（大写） | `ft.Icons.PLAY_CIRCLE` |
-| **颜色** | `ft.Colors.XXX`（大写）或十六进制 | `ft.Colors.BLUE_400` 或 `"#0000FF"` |
-| **对齐** | `ft.Alignment(x, y)` | `ft.Alignment(0, 0)` 表示居中 |
-| **圆角** | `ft.BorderRadius.all(value)` | `ft.BorderRadius.all(10)` |
-| **事件处理** | 所有 handler 必须是 `async def` | ❌ 不支持 lambda |
-
-### 视频强制重渲染策略
-
-为解决 Android/Web 端视频缓存/冻结问题，采用**"容器替换"**模式：
-- ❌ 不更新现有播放器的 playlist
-- ✅ 每次切换视频时创建全新的 `ftv.Video` 实例
-- ✅ 替换 `Container.content` 强制视频引擎完全重置
-
-```python
-# 示例代码片段
-new_player = ftv.Video(
-    expand=True,
-    autoplay=True,
-    playlist=[ftv.VideoMedia(src)],
-    key=f"video_{unique_id}"  # 确保唯一性
-)
-video_container.content = new_player
-```
-
----
-
-## 📁 项目结构
-
-```
-GongGong/
-│
-├── .github/workflows/          # CI/CD 自动化
-│   └── build_apk.yml           # GitHub Actions 打包配置
-│
-├── src/                        # 源代码根目录
-│   ├── main.py                 # 应用入口：生命周期 & 路由逻辑
-│   ├── views.py                # UI 层：菜单视图、播放器视图
-│   ├── data_loader.py          # 数据层：扫描 assets 并构建 Topic 对象
-│   ├── create_files.py         # 工具脚本
-│   │
-│   └── assets/                 # 媒体资源目录（自动扫描）
-│       ├── icon.png            # 应用图标
-│       ├── splash_android.png  # 启动屏幕
-│       │
-│       ├── topic_naming/       # [话题文件夹示例：起名字]
-│       │   ├── q1_0_ask_name.mp4     # Q1: 初始提问（State 0）
-│       │   ├── q1_1_repeat_name.mp4  # Q1: 温和重复（State 1）
-│       │   ├── q1_2_praise_name.mp4  # Q1: 正向反馈（State 2）
-│       │   └── q1_3_guide_name.mp4   # Q1: 引导/安慰（State 3）
-│       │
-│       └── topic_huize/        # [话题文件夹示例：惠泽小吃]
-│           └── ... (同上结构)
-│
-├── pyproject.toml              # 核心配置：依赖、构建参数、权限
-├── uv.lock                     # 依赖锁定文件（自动生成）
-├── .gitignore                  # Git 忽略规则
-└── README.md                   # 本文档
-```
 
 ---
 
@@ -188,60 +230,62 @@ class Topic:
 
 ---
 
-## 🎮 交互逻辑（状态机）
+## ⚠️ 故障排除
 
-播放器视图针对每个 `Question` 对象管理 4 个状态（对应 `type_id`）：
+### 常见问题
 
-### State 0: Query（提问）
-- **动作**: 自动播放 `Video[0]`（初始提问）
-- **用户操作**:
-  - 🔵 **听不清/再说一遍** → 转到 State 1
-  - 🟢 **回答正确** → 转到 State 2
-  - 🟠 **忘记了** → 转到 State 3
+#### 1. ModuleNotFoundError（模块导入错误）
 
-### State 1: Repeat（重复）
-- **动作**: 播放 `Video[1]`（温和重复）
-- **用户操作**: 同 State 0（可继续回答或再次请求重复）
-
-### State 2: Correct（正确反馈）
-- **动作**: 播放 `Video[2]`（正向鼓励）
-- **用户操作**:
-  - 🟢 **下一题** → 加载下一个 Question（返回 State 0）
-  - 🏠 **返回菜单**（如果是最后一题）
-
-### State 3: Guide（引导）
-- **动作**: 播放 `Video[3]`（引导/安慰）
-- **用户操作**:
-  - 🔄 **重试** → 重新加载当前 Question（返回 State 0）
-  - ⏭️ **跳过** → 加载下一个 Question（返回 State 0）
-
----
-
-## 🚀 快速开始
-
-### 本地运行
-
-#### 1. 安装依赖（推荐使用 uv）
-
-```bash
-# 安装 uv（如果尚未安装）
-pip install uv
-
-# 同步依赖
-uv sync
+**问题描述**:
+```
+ModuleNotFoundError: No module named 'data_loader'
+ModuleNotFoundError: No module named 'config'
 ```
 
-#### 2. 桌面模式运行
+**原因**:
+- 未从项目根目录运行应用
+- Python 路径未包含 `src` 目录
+- 使用了错误的运行命令
 
+**解决方案**:
 ```bash
-uv run flet run
+# ✅ 正确：从项目根目录运行
+cd /path/to/GongGong
+flet run src/main.py
+
+# ✅ 正确：使用 uv 运行
+uv run flet run src/main.py
+
+# ❌ 错误：不要在 src 目录内运行
+cd src
+flet run main.py
+
+# ❌ 错误：不要直接使用 python 运行
+python src/main.py
 ```
 
-#### 3. Web 模式运行
+#### 2. 视频播放黑屏
 
-```bash
-uv run flet run --web
+**问题描述**:
+- 桌面端使用 `ft.AppView.WEB_BROWSER` 模式时视频正常
+- 桌面客户端模式和 Android 应用中视频显示黑屏
+- 其他功能完全正常
+
+**临时解决方案**:
+```python
+# 在开发调试时可使用 Web 模式
+ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
 ```
+
+#### 3. Flet 0.80.5 API 变更
+
+**问题描述**:
+- Windows PC: `ft.FilePicker` 报 "Unknown control: filepicker"
+- Android APK: `flet_permission_handler` 报 "Unknown control: permission_handler"
+
+**解决方案**:
+- 已修复：改用 Flet 0.80.5 的内联实例化 API
+- FilePicker 和 PermissionHandler 现在都是 Service 类型，不再需要添加到 `page.overlay`
 
 ---
 
@@ -274,18 +318,6 @@ uv run flet run --web
 > ⚠️ 本地 Windows 环境打包存在诸多环境依赖问题，建议优先使用 GitHub Actions
 
 **详细的本地打包尝试记录** 请参考：[`LOCAL_BUILD_WINDOWS.md`](./LOCAL_BUILD_WINDOWS.md)
-
-**简要步骤**:
-```bash
-# 确保已安装 Flutter、Android SDK、Java 17
-# 清理旧构建
-uv run flet build apk -vv
-```
-
-**常见问题**:
-- 用户名包含空格导致 Flutter 无法识别
-- 协议签署流程过快
-- 环境变量配置复杂
 
 ---
 
@@ -320,58 +352,17 @@ split_per_abi = false           # false = 通用包，true = 按架构分包
 
 ---
 
-## ⚠️ 已知问题
-
-### 视频播放黑屏
-
-**问题描述**:
-- 桌面端使用 `ft.AppView.WEB_BROWSER` 模式时视频正常
-- 桌面客户端模式和 Android 应用中视频显示黑屏
-- 其他功能完全正常
-
-**当前状态**:
-- 已创建 `fix/video-black-screen` 分支专门解决此问题
-- 初步分析与视频编解码器/硬件加速有关
-
-**临时解决方案**:
-```python
-# 在开发调试时可使用 Web 模式
-ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
-```
-
-## 📝 问题修复记录
-
-### [已解决] Flet 0.80.5 "Unknown control" 错误 (Windows & Android)
-- **症状**: 
-  - Windows PC: `ft.FilePicker` 报 "Unknown control: filepicker"
-  - Android APK: `flet_permission_handler` 报 "Unknown control: permission_handler"
-- **根本原因**: Flet 0.80.5 API 变化，`FilePicker` 和 `PermissionHandler` 现在都是 `Service` 类型，不再需要添加到 `page.overlay`
-- **修复方案**: 
-  1. 重写 `main.py`，移除所有 `page.overlay.append()` 调用
-  2. 重写 `views.py`，改用内联实例化 API：
-     ```python
-     # FilePicker - 直接实例化使用
-     selected_path = await ft.FilePicker().get_directory_path()
-     
-     # PermissionHandler - 直接实例化使用
-     ph = fph.PermissionHandler()
-     status = await ph.request(permission)
-     ```
-
-### [已解决] 视频播放黑屏 (Android & Windows)
-- **症状**: 界面UI加载正常，但视频区域黑屏，无报错或报 `No such file`。
-- **根本原因**: 
-  1. **资源丢失**: `pyproject.toml` 缺少 `assets_dir` 配置，导致视频未打包进 APK。
-  2. **路径错误**: 代码使用了 Web 相对路径，而 Android ExoPlayer 需要本地绝对路径 (`file:///`)。
-- **修复方案**: 
-  1. 修正构建配置，确保资源打入包内。
-  2. 重构 `views.py`，使用 `pathlib` 动态计算绝对物理路径。
-
-### [已解决] Windows 用户名空格问题
-- **症状**: 路径 `C:\Users\Chen Xinglin\...` 被截断或转义错误。
-- **修复方案**: 同样通过 `pathlib.resolve()` 获取绝对路径并转换为 URI 解决。
-
 ## 📝 更新日志
+
+### 2026-02-13: 模块化架构重构
+- **视图层分解**:
+  - 将单一的 `views.py` 分解为 `src/views/` 包
+  - 创建独立的 `menu.py`、`setup.py`、`player.py` 模块
+  - 提高代码可维护性和团队协作效率
+- **导入优化**:
+  - 修复所有模块间的导入语句
+  - 移除不必要的 `src.` 前缀
+  - 确保模块化架构的正确运行方式
 
 ### 2026-02-10: 解耦架构与 Flet 0.80.5 修复
 - **解耦架构**:
@@ -387,36 +378,16 @@ ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
   - 修复 "Unknown control: permission_handler" 错误（Android）
   - 改用内联实例化 API：`await ft.FilePicker().get_directory_path()`
   - 移除所有 `page.overlay.append()` 调用
-- **权限管理优化**:
-  - 自动处理 Android 存储权限请求
-  - 支持 Android 11+ 的 `MANAGE_EXTERNAL_STORAGE` 权限
 
 ### 2026-02-04: UI 优化与视频播放器改进
 - **全局窗口设置**:
   - 移除页面内边距 (`page.padding = 0`)，实现全沉浸式体验
   - 设置背景色为黑色 (`page.bgcolor = ft.Colors.BLACK`)，提供影院式边框
   - 确保不创建默认的系统应用栏
-- **菜单视图文本更新**:
-  - 将副标题文本格式从"包含 {count} 个环节"改为"包含 {count} 个问题"
 - **播放器视图重构**:
-  - 使用三层 Stack 架构实现沉浸式覆盖:
-    1. **底层**: 视频层（`ft.Container` + `ftv.Video`）
-    2. **中层**: 手势检测层（`ft.GestureDetector`，支持单击切换覆盖层、双击暂停/播放）
-    3. **顶层**: UI 覆盖层（`ft.Container`，包含自定义 AppBar 和底部控制栏）
-  - 修复菜单隐藏逻辑：为透明覆盖层添加 `on_click=toggle_overlay`，确保点击空白区域也能关闭菜单
-  - 修复双击暂停功能：使用官方 `play_or_pause()` API
-  - 修复 Android 视频质量和宽高比:
-    - 移除无效的 `aspect_ratio` 属性
-    - 设置 `fit=ft.BoxFit.CONTAIN` 确保 16:9 视频适配屏幕（带黑边，无变形）
-    - 将 `filter_quality` 从 `HIGH` 改为 `MEDIUM`，提升 Android 设备清晰度
-  - 修复 SafeArea 放置:
-    - 从根 View 控件中移除 `ft.SafeArea`
-    - 仅在 UI 覆盖层内部添加 `ft.SafeArea`
-    - 视频堆叠层现在可以触及物理屏幕边缘
-  - 清理调试文本和多余容器
-- **代码优化**:
-  - 修复变量引用顺序错误（`toggle_overlay` 在赋值前被引用）
-  - 所有函数添加中文注释
+  - 使用三层 Stack 架构实现沉浸式覆盖
+  - 修复菜单隐藏逻辑和双击暂停功能
+  - 优化 Android 视频质量和宽高比
 
 ---
 
@@ -440,6 +411,7 @@ ft.run(main, assets_dir="assets", view=ft.AppView.WEB_BROWSER)
 - 所有函数必须添加中文注释
 - 遵循 Flet 0.80+ 的最新语法规范
 - 测试代码在桌面和 Web 模式下的兼容性
+- 遵循模块化架构设计原则
 
 ---
 
