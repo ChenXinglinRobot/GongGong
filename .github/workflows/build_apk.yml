@@ -55,7 +55,7 @@ jobs:
       # 2. 因为 pyproject.toml 里配置了 path="src"，它会自动进去找代码
       - name: Build APK
         run: |
-          uv run flet build apk --verbose
+          uv run flet build apk --yes --verbose
         
       - name: Verify APK exists
         run: |
