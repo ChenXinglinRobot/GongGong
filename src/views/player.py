@@ -1,6 +1,6 @@
 """
 播放器视图模块
-包含核心播放器逻辑，使用 Stack 三层架构实现沉浸式覆盖
+包含核心播放器逻辑，使用 Stack 分层架构实现无遮挡交互
 """
 
 import flet as ft
@@ -14,12 +14,9 @@ import config
 
 def create_glass_button(text, icon, color, on_click_handler, expand=True):
     """
-    创建有色毛玻璃按钮 (Tinted Glass) - 终极交互修复版
-    修复问题：
-    1. 按钮颜色卡在"深色"状态
-    2. 需要点击两次才能触发
+    创建有色毛玻璃按钮 (Tinted Glass)
     """
-    import asyncio # 确保引入 asyncio
+    import asyncio
 
     # 颜色定义
     normal_bg = ft.Colors.with_opacity(0.35, color)
@@ -28,26 +25,13 @@ def create_glass_button(text, icon, color, on_click_handler, expand=True):
     border_color = ft.Colors.with_opacity(0.3, ft.Colors.WHITE)
     hover_border_color = ft.Colors.with_opacity(0.6, ft.Colors.WHITE)
 
-    # --- 🔥 核心修复逻辑 ---
+    # 点击事件包装器
     async def wrapped_on_click(e):
-        """
-        点击事件包装器：
-        先强制恢复按钮外观，再执行业务逻辑。
-        """
-        # 1. 强制视觉复位 (Resets Visuals)
-        # 无论之前是什么状态，点击发生时，立刻变回"悬停/普通"颜色
-        # 并恢复缩放比例
         btn_container.bgcolor = hover_bg
         btn_container.scale = 1.0
         btn_container.border = ft.Border.all(1.5, hover_border_color)
         btn_container.update()
-        
-        # 2. 视觉延迟 (Visual Delay)
-        # 给用户 0.1 秒的时间看到按钮"弹起"的效果
-        # 这也是解决"点击无效"的关键，给 UI 线程喘息时间
         await asyncio.sleep(0.1)
-
-        # 3. 执行真正的逻辑 (Execute Logic)
         if on_click_handler:
             if asyncio.iscoroutinefunction(on_click_handler):
                 await on_click_handler(e)
@@ -76,49 +60,50 @@ def create_glass_button(text, icon, color, on_click_handler, expand=True):
             offset=ft.Offset(0, 4),
         ),
         clip_behavior=ft.ClipBehavior.HARD_EDGE, 
-        animate=ft.Animation(100, ft.AnimationCurve.EASE_OUT), # 动画加快一点，更跟手
-        
-        # 🔥 关键：使用包装后的点击事件
+        animate=ft.Animation(100, ft.AnimationCurve.EASE_OUT),
         on_click=wrapped_on_click,
     )
     
     if expand:
         btn_container.expand = True
     
-    # --- 简化的交互逻辑 ---
-    # 我们移除了 on_tap_up，因为 wrapped_on_click 已经接管了松手后的逻辑
-    # 这样避免了事件冲突
-    
     def on_tap_down(e):
-        """按下时：变深，缩小"""
         btn_container.bgcolor = pressed_bg
         btn_container.scale = 0.96
         btn_container.update()
     
     def on_hover(e):
-        """悬停时：变亮"""
         is_hovering = e.data == "true"
-        # 只有在没有按下时才改变颜色
         btn_container.bgcolor = hover_bg if is_hovering else normal_bg
-        # 边框变亮
         current_border = hover_border_color if is_hovering else border_color
         btn_container.border = ft.Border.all(1.5, current_border)
-        btn_container.scale = 1.0 # 确保鼠标移出时恢复大小
+        btn_container.scale = 1.0
         btn_container.update()
 
-    # 绑定事件
     btn_container.on_tap_down = on_tap_down
     btn_container.on_hover = on_hover
     
     return btn_container
 
+
 def get_player_view(page: ft.Page, topic: Topic):
-    """核心播放页面 - 使用 Stack 三层架构实现沉浸式覆盖"""
+    """核心播放页面 - 修复层级遮挡与交互逻辑"""
     current_q_index = 0
     questions: List[Question] = topic.questions
     total_questions = len(questions)
 
-    # --- Logic Functions (需要在事件处理函数之前定义) ---
+    # 状态变量
+    overlay_visible = False
+    
+    # 🔥 核心修正：使用 is_paused 变量，逻辑更清晰
+    is_paused = False # 默认自动播放，所以初始不是暂停状态
+    
+    auto_hide_task = None
+    
+    # 添加标志以忽略视频加载后的首次完成事件
+    ignore_first_completion = True
+
+    # --- Logic Functions ---
 
     async def update_ui_state(state_id: int):
         nonlocal current_q_index
@@ -130,9 +115,7 @@ def get_player_view(page: ft.Page, topic: Topic):
         
         if raw_path:
             src = utils.get_video_src(raw_path)
-            print(f"Switching video to: {src}")
             
-            # 创建新的 Video 组件
             new_player = ftv.Video(
                 expand=True,
                 autoplay=True,
@@ -141,13 +124,10 @@ def get_player_view(page: ft.Page, topic: Topic):
                 fit=ft.BoxFit.CONTAIN,
                 filter_quality=ft.FilterQuality.MEDIUM,
                 key=f"video_{q.id}_{state_id}_{current_q_index}",
-                on_complete=on_video_completed  # 绑定视频完成事件
+                on_complete=on_video_completed
             )
-            
-            # 将容器内容替换为新播放器
             video_container.content = new_player
         else:
-            print(f"Error: Missing video for State {state_id} in Question {q.id}")
             video_container.content = ft.Text("视频缺失", color=config.COLOR_TEXT_ERROR)
 
         controls_row.controls.clear()
@@ -162,11 +142,22 @@ def get_player_view(page: ft.Page, topic: Topic):
         elif state_id == 3:
             controls_row.controls = [btn_retry, btn_skip]
 
-        # 视频切换后调用自动显示/隐藏逻辑
-        await on_video_changed()
+        # 视频切换：重置为播放状态 (is_paused = False)
+        nonlocal is_paused, ignore_first_completion
+        is_paused = False
+        ignore_first_completion = True  # 重置标志，忽略新视频的首次完成事件
+        print(f"[UI UPDATE] Switching to State {state_id}. is_paused reset to False. Reset ignore_first_completion")
+        
+        # 立即更新中央按钮（确保它隐藏）
+        update_central_button_visuals()
+        
+        # 显示菜单，并启动自动隐藏
+        await show_overlay()
+        await start_auto_hide()
+        
         page.update()
     
-    # --- 事件处理函数定义（需要在按钮之前定义）---
+    # --- 事件处理 ---
     
     async def on_repeat_click(e): await update_ui_state(1)
     async def on_forget_click(e): await update_ui_state(3)
@@ -181,7 +172,6 @@ def get_player_view(page: ft.Page, topic: Topic):
             await update_ui_state(0)
     
     async def on_finish_click(e): 
-        # 离开前清空视频，防止后台声音
         video_container.content = None 
         await page.push_route("/")
 
@@ -189,64 +179,131 @@ def get_player_view(page: ft.Page, topic: Topic):
         video_container.content = None
         await page.push_route("/")
     
-    # --- UI Controls Definition ---
+    # --- 控制逻辑 ---
+
+    def update_central_button_visuals():
+        """
+        更新中央大按钮
+        逻辑：只有当【暂停】时才显示，【播放】时必须隐藏
+        """
+        print(f"[VISUAL] Updating Button. is_paused={is_paused} -> Button Visible Should be {is_paused}")
+        if is_paused:
+            # 暂停中 -> 显示按钮
+            central_play_btn.visible = True
+            central_play_btn.opacity = 1
+            central_play_btn.scale = 1.0
+        else:
+            # 正在播放 -> 隐藏按钮
+            central_play_btn.opacity = 0
+            central_play_btn.scale = 0.8
+            central_play_btn.visible = False # 彻底隐藏
+        
+        central_play_btn.update()
+
+    async def toggle_play_pause(e):
+        """切换播放/暂停"""
+        if video_container.content:
+            await video_container.content.play_or_pause()
+            nonlocal is_paused
+            is_paused = not is_paused # 状态翻转
+            print(f"[ACTION] Toggle Play/Pause. New state: is_paused={is_paused}")
+            
+            update_central_button_visuals()
+            
+            if is_paused:
+                # 暂停状态：强制显示菜单，取消自动隐藏
+                await show_overlay()
+                if auto_hide_task:
+                    auto_hide_task.cancel()
+            else:
+                # 播放状态：显示菜单并启动5秒后自动隐藏
+                await show_overlay()
+                await start_auto_hide()
     
-    # 按钮定义 - 使用毛玻璃效果
-    btn_repeat = create_glass_button(
-        "听不清 / 再说一遍",
-        ft.Icons.HEARING,
-        config.COLOR_BTN_REPEAT,
-        on_repeat_click,
-        expand=True
-    )
+    async def handle_screen_tap(e):
+        """单击屏幕空白处：切换菜单显示"""
+        if overlay_visible:
+            await hide_overlay()
+        else:
+            await show_overlay()
+            # 如果是播放状态 (not is_paused)，显示后需要启动倒计时
+            if not is_paused:
+                await start_auto_hide()
+
+    async def show_overlay():
+        nonlocal overlay_visible
+        overlay_visible = True
+        
+        # 顶部栏：滑入 (0,0)
+        top_bar_container.opacity = 1
+        top_bar_container.offset = ft.Offset(0, 0)
+        
+        # 底部栏：滑入 (0,0)
+        bottom_bar_container.opacity = 1
+        bottom_bar_container.offset = ft.Offset(0, 0)
+        
+        page.update()
     
-    btn_forget = create_glass_button(
-        "忘记了",
-        ft.Icons.HELP_OUTLINE,
-        config.COLOR_BTN_FORGET,
-        on_forget_click,
-        expand=True
-    )
-
-    btn_correct = create_glass_button(
-        "回答正确",
-        ft.Icons.CHECK_CIRCLE,
-        config.COLOR_BTN_CORRECT,
-        on_correct_click,
-        expand=True
-    )
-
-    btn_next = create_glass_button(
-        "下一题",
-        ft.Icons.ARROW_FORWARD,
-        config.COLOR_BTN_NEXT,
-        on_next_or_skip_click,
-        expand=True
-    )
+    async def hide_overlay():
+        nonlocal overlay_visible
+        overlay_visible = False
+        
+        # 顶部栏：上滑隐藏 (0, -1)
+        top_bar_container.opacity = 0
+        top_bar_container.offset = ft.Offset(0, -1)
+        
+        # 底部栏：下滑隐藏 (0, 1)
+        bottom_bar_container.opacity = 0
+        bottom_bar_container.offset = ft.Offset(0, 1)
+        
+        page.update()
     
-    btn_finish = create_glass_button(
-        "完成 - 返回菜单",
-        ft.Icons.HOME,
-        config.COLOR_BTN_FINISH,
-        on_finish_click,
-        expand=True
-    )
+    async def start_auto_hide():
+        """启动自动隐藏任务"""
+        nonlocal auto_hide_task
+        if auto_hide_task:
+            auto_hide_task.cancel()
+        
+        print(f"[TIMER] Attempting start auto-hide. is_paused={is_paused}, overlay={overlay_visible}")
+        
+        # 🔥 修正逻辑：只有在播放时 (not is_paused) 才启动自动隐藏任务
+        if not is_paused:
+            async def auto_hide_task_func():
+                await asyncio.sleep(5)
+                # 再次检查状态，确保仍然是播放状态且菜单可见
+                if not is_paused and overlay_visible:
+                    await hide_overlay()
+            
+            auto_hide_task = asyncio.create_task(auto_hide_task_func())
+        else:
+            print("[TIMER] Skipping auto-hide because video is paused")
 
-    btn_retry = create_glass_button(
-        "重试本题",
-        ft.Icons.REFRESH,
-        config.COLOR_BTN_RETRY,
-        on_retry_click,
-        expand=True
-    )
+    async def on_video_completed(e):
+        """播放结束"""
+        nonlocal is_paused, ignore_first_completion
+        
+        # 如果这是视频加载后的首次完成事件，忽略它
+        if ignore_first_completion:
+            print(f"[EVENT] Ignoring first completion event. is_paused={is_paused}")
+            ignore_first_completion = False
+            return
+            
+        print(f"[EVENT] Video Completed. Current is_paused={is_paused}, Setting to True")
+        is_paused = True # 播放结束视为暂停
+        
+        # 显示大按钮和菜单
+        update_central_button_visuals()
+        await show_overlay()
 
-    btn_skip = create_glass_button(
-        "跳过",
-        ft.Icons.SKIP_NEXT,
-        config.COLOR_BTN_SKIP,
-        on_next_or_skip_click,
-        expand=True
-    )
+    # --- UI Elements ---
+
+    btn_repeat = create_glass_button("听不清 / 再说一遍", ft.Icons.HEARING, config.COLOR_BTN_REPEAT, on_repeat_click)
+    btn_forget = create_glass_button("忘记了", ft.Icons.HELP_OUTLINE, config.COLOR_BTN_FORGET, on_forget_click)
+    btn_correct = create_glass_button("回答正确", ft.Icons.CHECK_CIRCLE, config.COLOR_BTN_CORRECT, on_correct_click)
+    btn_next = create_glass_button("下一题", ft.Icons.ARROW_FORWARD, config.COLOR_BTN_NEXT, on_next_or_skip_click)
+    btn_finish = create_glass_button("完成 - 返回菜单", ft.Icons.HOME, config.COLOR_BTN_FINISH, on_finish_click)
+    btn_retry = create_glass_button("重试本题", ft.Icons.REFRESH, config.COLOR_BTN_RETRY, on_retry_click)
+    btn_skip = create_glass_button("跳过", ft.Icons.SKIP_NEXT, config.COLOR_BTN_SKIP, on_next_or_skip_click)
 
     controls_row = ft.Row(
         spacing=15,
@@ -254,204 +311,95 @@ def get_player_view(page: ft.Page, topic: Topic):
         vertical_alignment=ft.CrossAxisAlignment.CENTER,
     )
 
-    # 进度文本
     title_text = ft.Text(f"当前进度: 1 / {total_questions}", size=config.TEXT_SIZE_SMALL, color=config.COLOR_TEXT_TITLE)
     
-    # 视频容器 - 用于动态更新视频
+    # Layer 1: 视频容器
     video_container = ft.Container(
         bgcolor=config.COLOR_BG_BLACK,
-        alignment=ft.Alignment(0, 0),  # 居中对齐
-        content=ft.ProgressRing()  # 初始显示加载圈
+        alignment=ft.Alignment(0, 0),
+        content=ft.ProgressRing()
     )
-    
-    # UI 覆盖层可见性状态
-    overlay_visible = False
-    video_playing = True  # 视频播放状态标志
-    auto_hide_task = None  # 自动隐藏任务
-    
-    # --- 手势处理函数 ---
-    
-    async def show_overlay():
-        """显示覆盖层（带动画）"""
-        nonlocal overlay_visible
-        if not overlay_visible:
-            overlay_visible = True
-            overlay_container.opacity = 1
-            overlay_container.offset = ft.Offset(0, 0)
-            # 显示底部控制栏
-            bottom_container = overlay_container.content.controls[2]
-            bottom_container.opacity = 1
-            bottom_container.offset = ft.Offset(0, 0)
-            page.update()
-    
-    async def hide_overlay():
-        """隐藏覆盖层（带动画）"""
-        nonlocal overlay_visible
-        if overlay_visible:
-            overlay_visible = False
-            overlay_container.opacity = 0
-            overlay_container.offset = ft.Offset(0, -1)  # 顶部栏向上滑出
-            # 隐藏底部控制栏
-            bottom_container = overlay_container.content.controls[2]
-            bottom_container.opacity = 0
-            bottom_container.offset = ft.Offset(0, 0.2)  # 底部栏轻微下沉
-            page.update()
-    
-    async def toggle_overlay(e):
-        """切换覆盖层显示/隐藏"""
-        if overlay_visible:
-            await hide_overlay()
-        else:
-            await show_overlay()
-    
-    async def toggle_play_pause(e):
-        """切换视频播放/暂停（使用官方 API）"""
-        if video_container.content:
-            await video_container.content.play_or_pause()
-            # 更新播放状态
-            nonlocal video_playing
-            video_playing = not video_playing
-            # 如果暂停，显示覆盖层；如果播放，启动自动隐藏
-            if not video_playing:
-                await show_overlay()
-            else:
-                await start_auto_hide()
-    
-    async def on_video_completed(e):
-        """视频播放完成时的回调函数"""
-        print("视频播放完成，自动显示覆盖层")
-        await show_overlay()
-    
-    async def start_auto_hide():
-        """启动自动隐藏任务"""
-        nonlocal auto_hide_task
-        # 取消之前的任务
-        if auto_hide_task:
-            auto_hide_task.cancel()
-        
-        # 创建新的自动隐藏任务
-        async def auto_hide_task_func():
-            await asyncio.sleep(5)  # 等待5秒
-            if video_playing and overlay_visible:
-                await hide_overlay()
-        
-        auto_hide_task = asyncio.create_task(auto_hide_task_func())
-    
-    async def on_video_changed():
-        """视频切换时的处理"""
-        # 显示覆盖层
-        await show_overlay()
-        # 启动自动隐藏
-        await start_auto_hide()
-    
-    # --- Layer 3: UI 覆盖层 (Top) ---
-    # 先创建返回按钮，以便绑定事件
-    back_button = ft.IconButton(
-        ft.Icons.ARROW_BACK,
-        on_click=None,  # 稍后绑定
-        icon_color=config.COLOR_TEXT_WHITE,
-        icon_size=40  # 增大返回按钮，让外婆更容易点到
+
+    # Layer 2: 全屏手势层
+    gesture_layer = ft.GestureDetector(
+        expand=True,
+        on_tap=handle_screen_tap,        # 单击显隐菜单
+        on_double_tap=toggle_play_pause, # 双击暂停/播放
+        content=ft.Container(bgcolor=ft.Colors.TRANSPARENT, expand=True) # 透明实体填充
     )
-    
-    overlay_container = ft.Container(
-        left=0,
-        top=0,
-        right=0,
-        bottom=0,
-        opacity=0,  # 初始完全透明
-        offset=ft.Offset(0, -1),  # 顶部栏初始向上偏移
+
+    # Layer 3: 中央巨型播放按钮 (Central Play Button)
+    central_play_btn = ft.Container(
+        content=ft.Icon(ft.Icons.PLAY_ARROW_ROUNDED, size=64, color=ft.Colors.WHITE),
+        width=100, height=100,
+        alignment=ft.Alignment.CENTER,
+        bgcolor=ft.Colors.with_opacity(0.4, ft.Colors.BLACK),
+        blur=ft.Blur(20, 20, ft.BlurTileMode.CLAMP),
+        shape=ft.BoxShape.CIRCLE,
+        border=ft.Border.all(2, ft.Colors.with_opacity(0.5, ft.Colors.WHITE)),
+        # 初始状态：播放中(is_paused=False) -> 隐藏
+        opacity=0, 
+        scale=0.8,
+        visible=False,
+        animate_opacity=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
+        animate_scale=ft.Animation(300, ft.AnimationCurve.EASE_OUT_BACK),
+        on_click=toggle_play_pause, 
+    )
+
+    # Layer 4: 顶部栏 (Top Bar)
+    top_bar_container = ft.Container(
+        top=0, left=0, right=0, # 绝对定位
+        bgcolor=config.COLOR_BG_TRANSPARENT,
+        padding=ft.Padding.only(top=20, left=15, right=15, bottom=10),
+        content=ft.Row(
+            [
+                ft.IconButton(ft.Icons.ARROW_BACK, on_click=on_back_nav_click, icon_color=config.COLOR_TEXT_WHITE, icon_size=40),
+                ft.Column(
+                    [
+                        ft.Text(topic.name, color=config.COLOR_TEXT_WHITE, size=config.TEXT_SIZE_MEDIUM, weight=ft.FontWeight.BOLD),
+                        title_text
+                    ],
+                    spacing=2
+                ),
+                ft.Container(expand=True)
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+        ),
+        opacity=0,
+        offset=ft.Offset(0, -1), 
         animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
         animate_offset=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
-        on_click=toggle_overlay,
-        content=ft.Column(
-            [
-                # A. 顶部自定义 AppBar
-                ft.Container(
-                    bgcolor=config.COLOR_BG_TRANSPARENT,  # 半透明黑色
-                    padding=ft.Padding.only(top=20, left=15, right=15, bottom=10),  # top从30改为20
-                    content=ft.Row(
-                        [
-                            # 返回按钮
-                            back_button,
-                            # 信息列
-                            ft.Column(
-                                [
-                                    ft.Text(
-                                        topic.name,
-                                        color=config.COLOR_TEXT_WHITE,
-                                        size=config.TEXT_SIZE_MEDIUM,
-                                        weight=ft.FontWeight.BOLD
-                                    ),
-                                    title_text
-                                ],
-                                spacing=2
-                            ),
-                            # 占位器
-                            ft.Container(expand=True)
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                    )
-                ),
-                # 占位器
-                ft.Container(expand=True),
-                # B. 底部控制栏
-                ft.Container(
-                    padding=20,
-                    opacity=0,  # 初始完全透明
-                    offset=ft.Offset(0, 0.2),  # 底部栏初始向下偏移
-                    animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
-                    animate_offset=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
-                    content=controls_row
-                )
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            expand=True
-        )
     )
-    
-    # --- Layer 2: 手势检测层 (Middle) ---
-    gesture_detector = ft.GestureDetector(
-        left=0,
-        top=0,
-        right=0,
-        bottom=0,
-        on_tap=None,  # 稍后绑定
-        on_double_tap=None  # 稍后绑定
+
+    # Layer 5: 底部栏 (Bottom Bar)
+    bottom_bar_container = ft.Container(
+        bottom=0, left=0, right=0, # 绝对定位
+        padding=20,
+        content=controls_row,
+        opacity=0,
+        offset=ft.Offset(0, 1), 
+        animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
+        animate_offset=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
     )
-    
-    # --- Layer 1: 视频层 (Bottom) ---
-    # 视频层容器将在初始化时设置
-    
-    # --- 创建 Stack ---
+
+    # --- Final Stack ---
     stack_layers = ft.Stack(
         expand=True,
+        alignment=ft.Alignment.CENTER, 
         controls=[
-            # Layer 1: 视频层 (Bottom)
-            video_container,
-            # Layer 2: 手势检测层 (Middle)
-            gesture_detector,
-            # Layer 3: UI 覆盖层 (Top)
-            overlay_container
+            video_container,      # Layer 1
+            gesture_layer,        # Layer 2
+            central_play_btn,     # Layer 3
+            top_bar_container,    # Layer 4
+            bottom_bar_container, # Layer 5
         ]
     )
 
-    # --- 绑定事件处理函数 ---
-    
-    # 绑定手势事件
-    gesture_detector.on_tap = toggle_overlay
-    gesture_detector.on_double_tap = toggle_play_pause
-    
-    # 绑定返回按钮事件
-    back_button.on_click = on_back_nav_click
-    
     # --- Initialization ---
-    
     if total_questions > 0:
         first_q = questions[0]
-        # 初始加载第一个视频
         if 0 in first_q.videos:
             init_src = utils.get_video_src(first_q.videos[0])
-            # 直接创建初始 Video
             video_container.content = ftv.Video(
                 expand=True,
                 autoplay=True,
@@ -459,15 +407,17 @@ def get_player_view(page: ft.Page, topic: Topic):
                 playlist=[ftv.VideoMedia(init_src)],
                 fit=ft.BoxFit.CONTAIN,
                 filter_quality=ft.FilterQuality.MEDIUM,
-                on_complete=on_video_completed  # 绑定视频完成事件
+                on_complete=on_video_completed
             )
         
         controls_row.controls = [btn_repeat, btn_forget, btn_correct]
-        # 初始启动自动隐藏（如果有运行的事件循环）
+        
+        # 初始化状态同步：确保中间按钮隐藏 (因为默认自动播放)
+        central_play_btn.visible = False
+        
         try:
             asyncio.create_task(start_auto_hide())
         except RuntimeError:
-            # 如果没有运行的事件循环，跳过自动隐藏
             pass
 
     return ft.View(
