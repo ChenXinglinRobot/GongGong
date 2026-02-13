@@ -32,11 +32,26 @@ def create_glass_button(text, icon, color, on_click_handler, expand=True):
         btn_container.border = ft.Border.all(1.5, hover_border_color)
         btn_container.update()
         await asyncio.sleep(0.1)
+        
+        # 执行业务逻辑
         if on_click_handler:
             if asyncio.iscoroutinefunction(on_click_handler):
                 await on_click_handler(e)
             else:
                 on_click_handler(e)
+        
+        # 🔥 修复移动端触觉反馈不消失的问题：显式恢复到正常状态
+        # 移动端不会触发 on_hover 事件，所以需要手动恢复
+        # 使用 try-except 防止按钮已被移除的情况
+        try:
+            if btn_container.page:  # 检查按钮是否还在页面上
+                btn_container.bgcolor = normal_bg
+                btn_container.scale = 1.0
+                btn_container.border = ft.Border.all(1.5, border_color)
+                btn_container.update()
+        except Exception:
+            # 如果按钮已被移除或替换，忽略错误
+            pass
 
     # 容器定义
     btn_container = ft.Container(

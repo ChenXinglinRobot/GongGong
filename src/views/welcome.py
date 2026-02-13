@@ -64,16 +64,26 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         animate_opacity=ft.Animation(600, ft.AnimationCurve.EASE_OUT),
     )
 
+    # 🔥 温暖的进入按钮 - 带触觉反馈（琥珀金色主题）
     enter_btn = ft.Container(
         content=ft.Row(
-            [ft.Text("点击进入回忆", size=20, color="white"), ft.Icon(ft.Icons.ARROW_FORWARD, color="white")],
+            [ft.Text("点击进入回忆", size=20, color="white", weight="bold"), ft.Icon(ft.Icons.ARROW_FORWARD, color="white", size=24)],
             alignment=ft.MainAxisAlignment.CENTER,
         ),
         padding=ft.Padding.symmetric(horizontal=30, vertical=15),
         border_radius=30,
         bgcolor=ft.Colors.WHITE_24,
+        border=ft.Border.all(2, ft.Colors.with_opacity(0.3, ft.Colors.WHITE)),
+        shadow=ft.BoxShadow(
+            spread_radius=0,
+            blur_radius=15,
+            color=ft.Colors.with_opacity(0.5, ft.Colors.AMBER_ACCENT),
+            offset=ft.Offset(0, 0),
+        ),
+        scale=1.0,
         animate_opacity=ft.Animation(400, ft.AnimationCurve.EASE_OUT),
-        on_click=lambda e: asyncio.create_task(run_transition(e)),
+        animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT_BACK),
+        animate=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
     )
 
     welcome_layer = ft.Column(
@@ -166,12 +176,43 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
             anim_duration = 0 if is_dragging else 300
             
             card_key = f"card_{i}_{topic.id}"
+            
+            # 🔥 温暖的卡片触觉反馈（琥珀金色主题）
+            # 动态计算卡片的视觉状态
+            card_normal_bg = ft.Colors.WHITE_24 if is_center_highlight else ft.Colors.WHITE_10
+            card_pressed_bg = ft.Colors.with_opacity(0.45, ft.Colors.DEEP_ORANGE_ACCENT) if is_center_highlight else ft.Colors.with_opacity(0.25, ft.Colors.ORANGE_ACCENT)
+            
+            # 为每个卡片创建独立的触觉反馈处理函数
+            def create_card_tap_down_handler(card_container, pressed_color, normal_scale):
+                def handler(e):
+                    """按下效果：缩小+温暖发光"""
+                    card_container.bgcolor = pressed_color
+                    card_container.scale = normal_scale * 0.92
+                    # 添加温暖的发光边框效果
+                    card_container.border = ft.Border.all(2, ft.Colors.with_opacity(0.6, ft.Colors.AMBER_ACCENT))
+                    card_container.update()
+                return handler
+            
+            def create_card_hover_handler(card_container, normal_color, pressed_color, normal_scale):
+                def handler(e):
+                    """悬停效果（桌面端）"""
+                    is_hovering = e.data == "true"
+                    if is_hovering:
+                        card_container.bgcolor = ft.Colors.with_opacity(0.35, ft.Colors.AMBER_ACCENT)
+                        card_container.border = ft.Border.all(1.5, ft.Colors.with_opacity(0.5, ft.Colors.AMBER_ACCENT))
+                        card_container.scale = normal_scale * 1.05
+                    else:
+                        card_container.bgcolor = normal_color
+                        card_container.border = None
+                        card_container.scale = normal_scale
+                    card_container.update()
+                return handler
 
             card = ft.Container(
                 key=card_key,
                 content=ft.Text(topic.name, size=20 if is_center_highlight else 16, weight="bold", no_wrap=True),
                 width=240, height=60, 
-                bgcolor=ft.Colors.WHITE_24 if is_center_highlight else ft.Colors.WHITE_10,
+                bgcolor=card_normal_bg,
                 blur=ft.Blur(5, 5), 
                 border_radius=10,
                 padding=ft.Padding.only(left=20),
@@ -183,8 +224,14 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
                 animate_position=ft.Animation(anim_duration, ft.AnimationCurve.EASE_OUT),
                 animate_scale=ft.Animation(anim_duration, ft.AnimationCurve.EASE_OUT),
                 animate_opacity=ft.Animation(anim_duration, ft.AnimationCurve.EASE_OUT),
-                on_click=lambda e, virtual_idx=i: asyncio.create_task(handle_click(virtual_idx))
+                animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),  # 为bgcolor动画
+                on_click=lambda e, virtual_idx=i: asyncio.create_task(handle_click_with_feedback(virtual_idx, e))
             )
+            
+            # 绑定触觉反馈事件
+            card.on_tap_down = create_card_tap_down_handler(card, card_pressed_bg, scale)
+            card.on_hover = create_card_hover_handler(card, card_normal_bg, card_pressed_bg, scale)
+            
             cards_stack.controls.append(card)
         
         cards_stack.update()
@@ -232,6 +279,19 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
             current_state = CardState.ENTER
             real_topic = get_topic_by_index(round(current_scroll_index))
             await on_topic_enter(real_topic)
+    
+    async def handle_click_with_feedback(virtual_index, event):
+        """
+        带触觉反馈的点击处理
+        在移动端，点击后需要恢复到正常状态
+        """
+        # 先执行业务逻辑
+        await handle_click(virtual_index)
+        
+        # 🔥 移动端触觉反馈修复：点击完成后短暂延迟，然后重新渲染恢复正常状态
+        # 这样可以确保按钮在移动端也能正确恢复
+        await asyncio.sleep(0.1)
+        render_cards(is_dragging=False)
 
     # --- 5. 手势与惯性逻辑 ---
     
@@ -272,7 +332,75 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         on_vertical_drag_end=on_pan_end,
     )
     
-    # --- 6. 转场动画 ---
+    # --- 6. 转场动画与触觉反馈 ---
+    
+    # 🔥 进入按钮的触觉反馈处理（温暖琥珀金色）
+    def on_enter_btn_tap_down(e):
+        """按下效果：缩小+温暖发光增强"""
+        enter_btn.scale = 0.92
+        enter_btn.bgcolor = ft.Colors.with_opacity(0.4, ft.Colors.DEEP_ORANGE_ACCENT)
+        enter_btn.shadow = ft.BoxShadow(
+            spread_radius=2,
+            blur_radius=25,
+            color=ft.Colors.DEEP_ORANGE_ACCENT,
+            offset=ft.Offset(0, 0),
+        )
+        enter_btn.update()
+    
+    def on_enter_btn_hover(e):
+        """悬停效果（桌面端）"""
+        is_hovering = e.data == "true"
+        if is_hovering:
+            enter_btn.scale = 1.05
+            enter_btn.bgcolor = ft.Colors.with_opacity(0.35, ft.Colors.AMBER_ACCENT)
+            enter_btn.shadow = ft.BoxShadow(
+                spread_radius=1,
+                blur_radius=20,
+                color=ft.Colors.with_opacity(0.7, ft.Colors.AMBER_ACCENT),
+                offset=ft.Offset(0, 0),
+            )
+        else:
+            enter_btn.scale = 1.0
+            enter_btn.bgcolor = ft.Colors.WHITE_24
+            enter_btn.shadow = ft.BoxShadow(
+                spread_radius=0,
+                blur_radius=15,
+                color=ft.Colors.with_opacity(0.5, ft.Colors.AMBER_ACCENT),
+                offset=ft.Offset(0, 0),
+            )
+        enter_btn.update()
+    
+    async def on_enter_btn_click(e):
+        """点击效果：短暂反馈后执行转场"""
+        # 恢复到hover状态
+        enter_btn.scale = 1.05
+        enter_btn.bgcolor = ft.Colors.with_opacity(0.35, ft.Colors.AMBER_ACCENT)
+        enter_btn.update()
+        await asyncio.sleep(0.1)
+        
+        # 执行转场动画
+        await run_transition(e)
+        
+        # 🔥 移动端保护：转场后按钮已被隐藏，避免更新错误
+        try:
+            if enter_btn.page:
+                enter_btn.scale = 1.0
+                enter_btn.bgcolor = ft.Colors.WHITE_24
+                enter_btn.shadow = ft.BoxShadow(
+                    spread_radius=0,
+                    blur_radius=15,
+                    color=ft.Colors.with_opacity(0.5, ft.Colors.AMBER_ACCENT),
+                    offset=ft.Offset(0, 0),
+                )
+                enter_btn.update()
+        except Exception:
+            # 按钮已被隐藏或移除，忽略
+            pass
+    
+    # 绑定进入按钮的事件
+    enter_btn.on_tap_down = on_enter_btn_tap_down
+    enter_btn.on_hover = on_enter_btn_hover
+    enter_btn.on_click = lambda e: asyncio.create_task(on_enter_btn_click(e))
     
     async def run_transition(e):
         enter_btn.opacity = 0
