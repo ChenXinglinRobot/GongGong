@@ -54,9 +54,11 @@ async def main(page: ft.Page):
             
         if current_route == "/":
             if topics:
-                async def on_topic_select(topic):
+                # 定义 on_topic_enter 回调函数，当用户最终确认时，跳转到 /play/{topic.id}
+                async def on_topic_enter(topic):
                     await page.push_route(f"/play/{topic.id}")
-                page.views.append(views.get_menu_view(page, topics, on_topic_select))
+                # 使用新的 get_welcome_view 替换原来的 get_menu_view
+                page.views.append(views.get_welcome_view(page, topics, on_topic_enter))
             else:
                 await page.push_route("/setup")
         

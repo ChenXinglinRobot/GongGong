@@ -27,6 +27,7 @@ class Topic:
     id: str                    # 文件夹名称 (例如 "topic_family")
     name: str                  # 话题展示名称
     questions: List[Question]  # 该话题下所有 Question 的列表，按 id 升序排列
+    cover_image_path: str = ""  # 封面图片路径
 
 
 # ==========================================
@@ -100,6 +101,15 @@ def load_topics(root_path: str) -> List[Topic]:
             else:
                 print(f"[Warn] 跳过不符合命名规范的文件: {video_file.as_posix()}")
 
+        # 查找封面图片
+        cover_image_path = ""
+        cover_extensions = ['.jpg', '.jpeg', '.png', '.webp']
+        for ext in cover_extensions:
+            cover_file = topic_dir / f"cover{ext}"
+            if cover_file.exists():
+                cover_image_path = cover_file.as_posix()
+                break
+
         # 构建并筛选有效的 Question 对象
         valid_questions: List[Question] = []
         
@@ -118,7 +128,8 @@ def load_topics(root_path: str) -> List[Topic]:
             topics.append(Topic(
                 id=topic_id, 
                 name=display_name, 
-                questions=valid_questions
+                questions=valid_questions,
+                cover_image_path=cover_image_path
             ))
 
     if topics:
@@ -143,6 +154,7 @@ if __name__ == "__main__":
         first_topic = all_topics[0]
         print(f"\n检测到 Topic: {first_topic.name} (ID: {first_topic.id})")
         print(f"包含 {len(first_topic.questions)} 个有效问题")
+        print(f"封面图片路径: {first_topic.cover_image_path}")
 
         if first_topic.questions:
             first_q = first_topic.questions[0]
@@ -153,5 +165,10 @@ if __name__ == "__main__":
             
             # 验证完整性逻辑
             print(f"IsValid: {first_q.is_valid()}")
+        
+        # 显示所有话题的封面图片路径
+        print(f"\n所有话题的封面图片路径:")
+        for topic in all_topics:
+            print(f"  {topic.name}: {topic.cover_image_path}")
     else:
         print("\n未找到有效 Topic，请检查 'assets' 文件夹结构是否符合 README 要求。")
