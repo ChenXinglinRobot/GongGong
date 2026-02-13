@@ -211,16 +211,12 @@ def get_player_view(page: ft.Page, topic: Topic):
             update_central_button_visuals()
             
             if is_paused:
-                # 暂停状态：先确保菜单完全隐藏，然后强制显示菜单，取消自动隐藏
-                await hide_overlay()
-                await asyncio.sleep(0.3)  # 给动画足够时间完成（500ms动画的一半）
+                # 暂停状态：直接显示菜单，取消自动隐藏
                 await show_overlay()
                 if auto_hide_task:
                     auto_hide_task.cancel()
             else:
-                # 播放状态：先确保菜单完全隐藏，然后显示菜单并启动5秒后自动隐藏
-                await hide_overlay()
-                await asyncio.sleep(0.3)  # 给动画足够时间完成（500ms动画的一半）
+                # 播放状态：直接显示菜单并启动5秒后自动隐藏
                 await show_overlay()
                 await start_auto_hide()
     
@@ -238,40 +234,67 @@ def get_player_view(page: ft.Page, topic: Topic):
         nonlocal overlay_visible
         overlay_visible = True
         
-        # 🔥 简洁修复方案：确保动画从正确位置开始
-        # 检查当前offset值，如果不在隐藏位置，快速设置到隐藏位置
-        # 注意：因为opacity=0，用户看不到这个瞬间变化
+        print(f"[SHOW OVERLAY] Starting overlay show animation")
+        print(f"  Current state - Top: opacity={top_bar_container.opacity}, offset={top_bar_container.offset}")
+        print(f"  Current state - Bottom: opacity={bottom_bar_container.opacity}, offset={bottom_bar_container.offset}")
         
-        current_top_offset = top_bar_container.offset
-        current_bottom_offset = bottom_bar_container.offset
+        # 🔥 改进的修复方案：正确比较offset值
+        # 检查当前offset值，如果不在隐藏位置，需要修正
         
-        # 如果当前不在隐藏位置，快速设置到隐藏位置（无动画）
-        if current_top_offset != ft.Offset(0, -1):
-            # 临时保存动画设置
+        # 获取当前offset值，安全处理None情况
+        current_top_offset = top_bar_container.offset or ft.Offset(0, 0)
+        current_bottom_offset = bottom_bar_container.offset or ft.Offset(0, 0)
+        
+        # 打印详细的offset信息以便调试
+        print(f"  Current top offset: x={current_top_offset.x}, y={current_top_offset.y}")
+        print(f"  Target top offset: x=0, y=-1")
+        
+        # 检查是否需要修正offset（比较x和y值）
+        needs_top_correction = abs(current_top_offset.x - 0) > 0.001 or abs(current_top_offset.y - (-1)) > 0.001
+        needs_bottom_correction = abs(current_bottom_offset.x - 0) > 0.001 or abs(current_bottom_offset.y - 1) > 0.001
+        
+        # 如果当前opacity>0（可能是部分显示状态），先设置到完全隐藏
+        # 但为了避免闪烁，我们只在必要时调整
+        if top_bar_container.opacity > 0.1:
+            # 如果opacity较高，说明可能部分可见，需要先完全隐藏
+            top_bar_container.opacity = 0
+            bottom_bar_container.opacity = 0
+            page.update()
+            await asyncio.sleep(0.01)  # 短暂延迟
+        
+        # 确保从正确的offset位置开始动画
+        if needs_top_correction:
+            print(f"  Correcting top offset from ({current_top_offset.x}, {current_top_offset.y}) to (0, -1)")
+            # 保存当前动画设置
             original_top_animate = top_bar_container.animate_offset
+            # 临时禁用动画，快速设置到正确起始位置
             top_bar_container.animate_offset = None
             top_bar_container.offset = ft.Offset(0, -1)
+            # 立即恢复动画设置
             top_bar_container.animate_offset = original_top_animate
+            page.update()
+            await asyncio.sleep(0.02)  # 给UI足够时间处理
         
-        if current_bottom_offset != ft.Offset(0, 1):
-            # 临时保存动画设置
+        if needs_bottom_correction:
+            print(f"  Correcting bottom offset from ({current_bottom_offset.x}, {current_bottom_offset.y}) to (0, 1)")
+            # 保存当前动画设置
             original_bottom_animate = bottom_bar_container.animate_offset
+            # 临时禁用动画，快速设置到正确起始位置
             bottom_bar_container.animate_offset = None
             bottom_bar_container.offset = ft.Offset(0, 1)
+            # 立即恢复动画设置
             bottom_bar_container.animate_offset = original_bottom_animate
-        
-        # 如果需要，可以快速更新一次（用户看不到，因为opacity=0）
-        if current_top_offset != ft.Offset(0, -1) or current_bottom_offset != ft.Offset(0, 1):
             page.update()
-            await asyncio.sleep(0.01)  # 短暂延迟确保状态更新
+            await asyncio.sleep(0.02)
         
-        # 设置到显示位置，触发500ms动画
+        # 设置目标状态，开始500ms动画
         top_bar_container.opacity = 1
         top_bar_container.offset = ft.Offset(0, 0)
         bottom_bar_container.opacity = 1
         bottom_bar_container.offset = ft.Offset(0, 0)
         
         page.update()
+        print(f"[SHOW OVERLAY] Animation started from correct positions")
     
     async def hide_overlay():
         nonlocal overlay_visible
@@ -320,8 +343,42 @@ def get_player_view(page: ft.Page, topic: Topic):
         print(f"[EVENT] Video Completed. Current is_paused={is_paused}, Setting to True")
         is_paused = True # 播放结束视为暂停
         
-        # 显示大按钮和菜单
+        # 显示大按钮
         update_central_button_visuals()
+        
+        # 🔥 特殊处理视频完成时的动画：强制确保从正确位置开始
+        print(f"[EVENT] Before show_overlay - Top offset: {top_bar_container.offset}, Bottom offset: {bottom_bar_container.offset}")
+        
+        # 方案：先无动画地强制设置到隐藏位置，然后立即显示
+        # 保存当前动画设置
+        original_top_animate_offset = top_bar_container.animate_offset
+        original_top_animate_opacity = top_bar_container.animate_opacity
+        original_bottom_animate_offset = bottom_bar_container.animate_offset
+        original_bottom_animate_opacity = bottom_bar_container.animate_opacity
+        
+        # 临时禁用所有动画
+        top_bar_container.animate_offset = None
+        top_bar_container.animate_opacity = None
+        bottom_bar_container.animate_offset = None
+        bottom_bar_container.animate_opacity = None
+        
+        # 强制设置到隐藏位置
+        top_bar_container.opacity = 0
+        top_bar_container.offset = ft.Offset(0, -1)
+        bottom_bar_container.opacity = 0
+        bottom_bar_container.offset = ft.Offset(0, 1)
+        
+        # 立即更新
+        page.update()
+        await asyncio.sleep(0.02)  # 短暂延迟确保状态更新
+        
+        # 恢复动画设置
+        top_bar_container.animate_opacity = original_top_animate_opacity
+        top_bar_container.animate_offset = original_top_animate_offset
+        bottom_bar_container.animate_opacity = original_bottom_animate_opacity
+        bottom_bar_container.animate_offset = original_bottom_animate_offset
+        
+        # 现在调用 show_overlay()，它会从正确的隐藏位置开始动画
         await show_overlay()
 
     # --- UI Elements ---
