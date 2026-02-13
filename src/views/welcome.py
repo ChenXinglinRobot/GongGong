@@ -35,13 +35,13 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
     # 动态模糊层
     bg_blur_weak = ft.Container(
         expand=True,
-        bgcolor=ft.Colors.BLACK12, 
+        bgcolor=ft.Colors.BLACK_12, 
         blur=ft.Blur(5, 5, ft.BlurTileMode.CLAMP), 
     )
 
     bg_blur_strong = ft.Container(
         expand=True,
-        bgcolor=ft.Colors.BLACK45, 
+        bgcolor=ft.Colors.BLACK_45, 
         blur=ft.Blur(30, 30, ft.BlurTileMode.CLAMP), 
         opacity=0, 
         animate_opacity=ft.Animation(1000, ft.AnimationCurve.EASE_OUT), 
@@ -69,9 +69,9 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
             [ft.Text("点击进入回忆", size=20, color="white"), ft.Icon(ft.Icons.ARROW_FORWARD, color="white")],
             alignment=ft.MainAxisAlignment.CENTER,
         ),
-        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
         border_radius=30,
-        bgcolor=ft.Colors.WHITE24,
+        bgcolor=ft.Colors.WHITE_24,
         animate_opacity=ft.Animation(400, ft.AnimationCurve.EASE_OUT),
         on_click=lambda e: asyncio.create_task(run_transition(e)),
     )
@@ -107,7 +107,7 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
     right_panel = ft.Container(
         content=right_image_switcher,
         expand=True,
-        padding=ft.padding.only(left=320, right=50, top=50, bottom=50),
+        padding=ft.Padding.only(left=320, right=50, top=50, bottom=50),
         opacity=0, scale=0.9,
         # 这里的动画曲线决定了回弹的质感，EASE_OUT_CUBIC 很有弹性
         animate_opacity=ft.Animation(800, ft.AnimationCurve.EASE_OUT),
@@ -171,10 +171,10 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
                 key=card_key,
                 content=ft.Text(topic.name, size=20 if is_center_highlight else 16, weight="bold", no_wrap=True),
                 width=240, height=60, 
-                bgcolor=ft.Colors.WHITE24 if is_center_highlight else ft.Colors.WHITE10,
+                bgcolor=ft.Colors.WHITE_24 if is_center_highlight else ft.Colors.WHITE_10,
                 blur=ft.Blur(5, 5), 
                 border_radius=10,
-                padding=ft.padding.only(left=20),
+                padding=ft.Padding.only(left=20),
                 alignment=ft.Alignment.CENTER_LEFT,
                 left=50 + offset_x,
                 top=top_y,
@@ -202,7 +202,7 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
             key=f"img_{current_real_topic.id}",
             image=ft.DecorationImage(src=img_src, fit=ft.BoxFit.COVER),
             border_radius=16,
-            shadow=ft.BoxShadow(blur_radius=15, color=ft.Colors.BLACK45), 
+            shadow=ft.BoxShadow(blur_radius=15, color=ft.Colors.BLACK_45),
         )
         right_image_switcher.update()
 

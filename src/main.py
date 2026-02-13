@@ -24,13 +24,12 @@ async def main(page: ft.Page):
     page.update()
 
     # ==========================================
-    # 2. 读取配置 (回退到 page.shared_preferences)
+    # 2. 读取配置 (使用 page.client_storage)
     # ==========================================
-    # 注意：控制台可能会出现 DeprecationWarning，请忽略它，这是正常的！
     stored_path = None
     try:
-        if await page.shared_preferences.contains_key("video_root_path"):
-            stored_path = await page.shared_preferences.get("video_root_path")
+        if await page.client_storage.contains_key("video_root_path"):
+            stored_path = await page.client_storage.get("video_root_path")
     except Exception as e:
         print(f"读取配置出错 (可忽略): {e}")
         stored_path = None
