@@ -211,12 +211,16 @@ def get_player_view(page: ft.Page, topic: Topic):
             update_central_button_visuals()
             
             if is_paused:
-                # 暂停状态：强制显示菜单，取消自动隐藏
+                # 暂停状态：先确保菜单完全隐藏，然后强制显示菜单，取消自动隐藏
+                await hide_overlay()
+                await asyncio.sleep(0.3)  # 给动画足够时间完成（500ms动画的一半）
                 await show_overlay()
                 if auto_hide_task:
                     auto_hide_task.cancel()
             else:
-                # 播放状态：显示菜单并启动5秒后自动隐藏
+                # 播放状态：先确保菜单完全隐藏，然后显示菜单并启动5秒后自动隐藏
+                await hide_overlay()
+                await asyncio.sleep(0.3)  # 给动画足够时间完成（500ms动画的一半）
                 await show_overlay()
                 await start_auto_hide()
     
@@ -234,11 +238,36 @@ def get_player_view(page: ft.Page, topic: Topic):
         nonlocal overlay_visible
         overlay_visible = True
         
-        # 顶部栏：滑入 (0,0)
+        # 🔥 简洁修复方案：确保动画从正确位置开始
+        # 检查当前offset值，如果不在隐藏位置，快速设置到隐藏位置
+        # 注意：因为opacity=0，用户看不到这个瞬间变化
+        
+        current_top_offset = top_bar_container.offset
+        current_bottom_offset = bottom_bar_container.offset
+        
+        # 如果当前不在隐藏位置，快速设置到隐藏位置（无动画）
+        if current_top_offset != ft.Offset(0, -1):
+            # 临时保存动画设置
+            original_top_animate = top_bar_container.animate_offset
+            top_bar_container.animate_offset = None
+            top_bar_container.offset = ft.Offset(0, -1)
+            top_bar_container.animate_offset = original_top_animate
+        
+        if current_bottom_offset != ft.Offset(0, 1):
+            # 临时保存动画设置
+            original_bottom_animate = bottom_bar_container.animate_offset
+            bottom_bar_container.animate_offset = None
+            bottom_bar_container.offset = ft.Offset(0, 1)
+            bottom_bar_container.animate_offset = original_bottom_animate
+        
+        # 如果需要，可以快速更新一次（用户看不到，因为opacity=0）
+        if current_top_offset != ft.Offset(0, -1) or current_bottom_offset != ft.Offset(0, 1):
+            page.update()
+            await asyncio.sleep(0.01)  # 短暂延迟确保状态更新
+        
+        # 设置到显示位置，触发500ms动画
         top_bar_container.opacity = 1
         top_bar_container.offset = ft.Offset(0, 0)
-        
-        # 底部栏：滑入 (0,0)
         bottom_bar_container.opacity = 1
         bottom_bar_container.offset = ft.Offset(0, 0)
         
