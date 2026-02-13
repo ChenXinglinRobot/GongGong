@@ -11,6 +11,9 @@ async def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 0
     page.bgcolor = ft.Colors.BLACK
+    
+    # 设置全屏模式（Android上会隐藏顶部状态栏）
+    page.window_full_screen = True
 
     # ==========================================
     # 🔥 Flet 0.80.5 修复：移除所有 overlay.append()

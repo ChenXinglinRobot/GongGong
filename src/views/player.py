@@ -5,6 +5,7 @@
 
 import flet as ft
 import flet_video as ftv
+import asyncio
 from typing import List
 from data_loader import Topic, Question
 import utils
@@ -139,7 +140,8 @@ def get_player_view(page: ft.Page, topic: Topic):
                 playlist=[ftv.VideoMedia(src)],
                 fit=ft.BoxFit.CONTAIN,
                 filter_quality=ft.FilterQuality.MEDIUM,
-                key=f"video_{q.id}_{state_id}_{current_q_index}"
+                key=f"video_{q.id}_{state_id}_{current_q_index}",
+                on_complete=on_video_completed  # 绑定视频完成事件
             )
             
             # 将容器内容替换为新播放器
@@ -160,6 +162,8 @@ def get_player_view(page: ft.Page, topic: Topic):
         elif state_id == 3:
             controls_row.controls = [btn_retry, btn_skip]
 
+        # 视频切换后调用自动显示/隐藏逻辑
+        await on_video_changed()
         page.update()
     
     # --- 事件处理函数定义（需要在按钮之前定义）---
@@ -262,26 +266,91 @@ def get_player_view(page: ft.Page, topic: Topic):
     
     # UI 覆盖层可见性状态
     overlay_visible = False
+    video_playing = True  # 视频播放状态标志
+    auto_hide_task = None  # 自动隐藏任务
     
     # --- 手势处理函数 ---
     
-    async def toggle_overlay(e):
+    async def show_overlay():
+        """显示覆盖层（带动画）"""
         nonlocal overlay_visible
-        overlay_visible = not overlay_visible
-        overlay_container.visible = overlay_visible
-        page.update()
+        if not overlay_visible:
+            overlay_visible = True
+            overlay_container.opacity = 1
+            overlay_container.offset = ft.Offset(0, 0)
+            # 显示底部控制栏
+            bottom_container = overlay_container.content.controls[2]
+            bottom_container.opacity = 1
+            bottom_container.offset = ft.Offset(0, 0)
+            page.update()
+    
+    async def hide_overlay():
+        """隐藏覆盖层（带动画）"""
+        nonlocal overlay_visible
+        if overlay_visible:
+            overlay_visible = False
+            overlay_container.opacity = 0
+            overlay_container.offset = ft.Offset(0, -1)  # 顶部栏向上滑出
+            # 隐藏底部控制栏
+            bottom_container = overlay_container.content.controls[2]
+            bottom_container.opacity = 0
+            bottom_container.offset = ft.Offset(0, 0.2)  # 底部栏轻微下沉
+            page.update()
+    
+    async def toggle_overlay(e):
+        """切换覆盖层显示/隐藏"""
+        if overlay_visible:
+            await hide_overlay()
+        else:
+            await show_overlay()
     
     async def toggle_play_pause(e):
-        # 切换视频播放/暂停（使用官方 API）
+        """切换视频播放/暂停（使用官方 API）"""
         if video_container.content:
             await video_container.content.play_or_pause()
+            # 更新播放状态
+            nonlocal video_playing
+            video_playing = not video_playing
+            # 如果暂停，显示覆盖层；如果播放，启动自动隐藏
+            if not video_playing:
+                await show_overlay()
+            else:
+                await start_auto_hide()
+    
+    async def on_video_completed(e):
+        """视频播放完成时的回调函数"""
+        print("视频播放完成，自动显示覆盖层")
+        await show_overlay()
+    
+    async def start_auto_hide():
+        """启动自动隐藏任务"""
+        nonlocal auto_hide_task
+        # 取消之前的任务
+        if auto_hide_task:
+            auto_hide_task.cancel()
+        
+        # 创建新的自动隐藏任务
+        async def auto_hide_task_func():
+            await asyncio.sleep(5)  # 等待5秒
+            if video_playing and overlay_visible:
+                await hide_overlay()
+        
+        auto_hide_task = asyncio.create_task(auto_hide_task_func())
+    
+    async def on_video_changed():
+        """视频切换时的处理"""
+        # 显示覆盖层
+        await show_overlay()
+        # 启动自动隐藏
+        await start_auto_hide()
     
     # --- Layer 3: UI 覆盖层 (Top) ---
     # 先创建返回按钮，以便绑定事件
     back_button = ft.IconButton(
         ft.Icons.ARROW_BACK,
         on_click=None,  # 稍后绑定
-        icon_color=config.COLOR_TEXT_WHITE
+        icon_color=config.COLOR_TEXT_WHITE,
+        icon_size=40  # 增大返回按钮，让外婆更容易点到
     )
     
     overlay_container = ft.Container(
@@ -289,49 +358,54 @@ def get_player_view(page: ft.Page, topic: Topic):
         top=0,
         right=0,
         bottom=0,
-        visible=False,  # 初始隐藏
+        opacity=0,  # 初始完全透明
+        offset=ft.Offset(0, -1),  # 顶部栏初始向上偏移
+        animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
+        animate_offset=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
         on_click=toggle_overlay,
-        content=ft.SafeArea(
-            content=ft.Column(
-                [
-                    # A. 顶部自定义 AppBar
-                    ft.Container(
-                        bgcolor=config.COLOR_BG_TRANSPARENT,  # 半透明黑色
-                        padding=ft.Padding.only(top=30, left=15, right=15, bottom=10),
-                        content=ft.Row(
-                            [
-                                # 返回按钮
-                                back_button,
-                                # 信息列
-                                ft.Column(
-                                    [
-                                        ft.Text(
-                                            topic.name,
-                                            color=config.COLOR_TEXT_WHITE,
-                                            size=config.TEXT_SIZE_MEDIUM,
-                                            weight=ft.FontWeight.BOLD
-                                        ),
-                                        title_text
-                                    ],
-                                    spacing=2
-                                ),
-                                # 占位器
-                                ft.Container(expand=True)
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-                        )
-                    ),
-                    # 占位器
-                    ft.Container(expand=True),
-                    # B. 底部控制栏
-                    ft.Container(
-                        padding=20,
-                        content=controls_row
+        content=ft.Column(
+            [
+                # A. 顶部自定义 AppBar
+                ft.Container(
+                    bgcolor=config.COLOR_BG_TRANSPARENT,  # 半透明黑色
+                    padding=ft.Padding.only(top=20, left=15, right=15, bottom=10),  # top从30改为20
+                    content=ft.Row(
+                        [
+                            # 返回按钮
+                            back_button,
+                            # 信息列
+                            ft.Column(
+                                [
+                                    ft.Text(
+                                        topic.name,
+                                        color=config.COLOR_TEXT_WHITE,
+                                        size=config.TEXT_SIZE_MEDIUM,
+                                        weight=ft.FontWeight.BOLD
+                                    ),
+                                    title_text
+                                ],
+                                spacing=2
+                            ),
+                            # 占位器
+                            ft.Container(expand=True)
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                     )
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                expand=True
-            )
+                ),
+                # 占位器
+                ft.Container(expand=True),
+                # B. 底部控制栏
+                ft.Container(
+                    padding=20,
+                    opacity=0,  # 初始完全透明
+                    offset=ft.Offset(0, 0.2),  # 底部栏初始向下偏移
+                    animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
+                    animate_offset=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
+                    content=controls_row
+                )
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            expand=True
         )
     )
     
@@ -384,10 +458,17 @@ def get_player_view(page: ft.Page, topic: Topic):
                 show_controls=False,
                 playlist=[ftv.VideoMedia(init_src)],
                 fit=ft.BoxFit.CONTAIN,
-                filter_quality=ft.FilterQuality.MEDIUM
+                filter_quality=ft.FilterQuality.MEDIUM,
+                on_complete=on_video_completed  # 绑定视频完成事件
             )
         
         controls_row.controls = [btn_repeat, btn_forget, btn_correct]
+        # 初始启动自动隐藏（如果有运行的事件循环）
+        try:
+            asyncio.create_task(start_auto_hide())
+        except RuntimeError:
+            # 如果没有运行的事件循环，跳过自动隐藏
+            pass
 
     return ft.View(
         route=f"/play/{topic.id}",
