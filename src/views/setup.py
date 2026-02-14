@@ -80,7 +80,8 @@ def get_setup_view(
                 return
 
             # 保存路径到共享首选项
-            await page.shared_preferences.set("video_root_path", selected_path)
+            shared_prefs = ft.SharedPreferences()
+            await shared_prefs.set("video_root_path", selected_path)
             selected_path_text.value = f"已选择: {selected_path}"
             await on_success(selected_path)
 
