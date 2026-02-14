@@ -56,7 +56,16 @@ async def main(page: ft.Page):
         except AttributeError:
             current_route = page.route
             
-        if current_route == "/":
+        if current_route == "/splash":
+            # 获取splash视图和组件引用
+            splash_view, image, text = views.get_splash_view(page)
+            page.views.append(splash_view)
+            page.update()
+            
+            # 启动动画任务
+            asyncio.create_task(views.start_splash_animation(page, image, text))
+            
+        elif current_route == "/":
             if topics:
                 # 定义 on_topic_enter 回调函数，当用户最终确认时，跳转到 /play/{topic.id}
                 async def on_topic_enter(topic):
@@ -106,7 +115,8 @@ async def main(page: ft.Page):
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop
-    await route_change(page)
+    # 设置初始路由为/splash
+    await page.push_route("/splash")
 
 if __name__ == "__main__":
     ft.run(main)
