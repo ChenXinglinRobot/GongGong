@@ -20,6 +20,7 @@ org = "com.gonggong"             # 组织标识
 product = "公公的留声机"           # 应用显示名称
 company = "GongGong Family"      # 公司/团队名
 copyright = "Copyright (C) 2026"
+bundle_id = "com.gonggong.gonggong"  # 安卓/iOS应用唯一标识符（Windows/macOS会忽略）
 
 # [tool.flet.app] 
 # 注意：删除了 path = "src"，因为这应该由 'flet build apk src' 命令行参数控制
@@ -31,6 +32,8 @@ path = "src"
 # --- 安卓打包专用配置 ---
 [tool.flet.android]
 split_per_abi = false  # false = 生成一个通用 APK (推荐用于测试)
+# 安卓应用图标配置（根据Flet文档，icon_android.png会自动被识别）
+bundle_id = "com.gonggong.gonggong"  # 安卓应用唯一标识符
 
 # --- 关键：安卓权限配置 ---
 [tool.flet.android.permission]
@@ -38,3 +41,8 @@ split_per_abi = false  # false = 生成一个通用 APK (推荐用于测试)
 "android.permission.READ_EXTERNAL_STORAGE" = true
 "android.permission.WRITE_EXTERNAL_STORAGE" = true
 "android.permission.MANAGE_EXTERNAL_STORAGE" = true  # 针对 Android 11+ 的核心权限
+
+# --- Windows打包专用配置 ---
+[tool.flet.windows]
+# Windows应用图标配置（根据Flet文档，icon_windows.png会自动被识别并转换为.ico）
+# 注意：Windows不需要bundle_id配置

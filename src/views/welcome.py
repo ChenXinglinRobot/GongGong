@@ -12,6 +12,9 @@ class CardState(Enum):
 
 def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callable[[Topic], Awaitable[None]]):
     
+    # 初始化触觉反馈组件
+    hf = ft.HapticFeedback()
+    
     # --- 1. 数据准备 ---
     first_cover = topics[0].cover_image_path if topics else ""
     
@@ -19,6 +22,7 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
     current_scroll_index = 0.0 
     target_index = 0 
     current_state = CardState.SELECTION
+    last_vibration_index = None  # 记录上次震动的卡片索引（用于防抖）
     
     # 视觉参数
     ITEM_HEIGHT = 80 
@@ -285,6 +289,9 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         带触觉反馈的点击处理
         在移动端，点击后需要恢复到正常状态
         """
+        # 🔥 触觉反馈：Light Impact - 轻盈的点击反馈
+        await hf.light_impact()
+        
         # 先执行业务逻辑
         await handle_click(virtual_index)
         
@@ -296,20 +303,28 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
     # --- 5. 手势与惯性逻辑 ---
     
     def on_pan_update(e: ft.DragUpdateEvent):
-        nonlocal current_scroll_index, current_state
+        nonlocal current_scroll_index, current_state, last_vibration_index
         
         if current_state == CardState.FOCUS:
             current_state = CardState.SELECTION
         
         # 🔥【新增效果】：只要拨动，就缩小一点点
         # 无论之前是在Focus(1.2)还是Selection(1.0)，都统一缩到 0.95
-        # 这种“受力收缩”的感觉会非常解压
+        # 这种"受力收缩"的感觉会非常解压
         right_panel.scale = 0.95 
         right_panel.update()
 
         delta_index = -e.local_delta.y / ITEM_HEIGHT 
         
         current_scroll_index += delta_index
+        
+        # 🔥 触觉反馈：Selection Click - 滑动跨过卡片时的"咔哒"感（带防抖）
+        current_index = round(current_scroll_index)
+        if current_index != last_vibration_index:
+            # 跨过了新卡片，触发震动
+            asyncio.create_task(hf.selection_click())
+            last_vibration_index = current_index
+        
         render_cards(is_dragging=True)
 
     def on_pan_end(e: ft.DragEndEvent):
@@ -372,6 +387,9 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
     
     async def on_enter_btn_click(e):
         """点击效果：短暂反馈后执行转场"""
+        # 🔥 触觉反馈：Heavy Impact - 厚重的确认感
+        await hf.heavy_impact()
+        
         # 恢复到hover状态
         enter_btn.scale = 1.05
         enter_btn.bgcolor = ft.Colors.with_opacity(0.35, ft.Colors.AMBER_ACCENT)
@@ -439,7 +457,7 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
 
     return ft.View(
         route="/",
-        controls=[root],
+        controls=[root],  # ✅ 修正：HapticFeedback 是 Service，不需要挂载到 UI 树中
         padding=0,
         bgcolor=ft.Colors.BLACK,
     )
