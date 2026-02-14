@@ -12,9 +12,10 @@ import utils
 import config
 
 
-def create_glass_button(text, icon, color, on_click_handler, expand=True):
+def create_glass_button(text, icon, color, on_click_handler, expand=True, will_be_replaced=False):
     """
     创建有色毛玻璃按钮 (Tinted Glass)
+    will_be_replaced: 如果为True，表示按钮在点击后会被替换，不需要恢复状态
     """
     import asyncio
 
@@ -27,11 +28,18 @@ def create_glass_button(text, icon, color, on_click_handler, expand=True):
 
     # 点击事件包装器
     async def wrapped_on_click(e):
+        # 按下效果
+        btn_container.bgcolor = pressed_bg
+        btn_container.scale = 0.96
+        btn_container.update()
+        await asyncio.sleep(0.05)  # 短暂延迟，让用户感受到按下效果
+        
+        # 切换到悬停状态
         btn_container.bgcolor = hover_bg
         btn_container.scale = 1.0
         btn_container.border = ft.Border.all(1.5, hover_border_color)
         btn_container.update()
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.05)
         
         # 执行业务逻辑
         if on_click_handler:
@@ -40,18 +48,17 @@ def create_glass_button(text, icon, color, on_click_handler, expand=True):
             else:
                 on_click_handler(e)
         
-        # 🔥 修复移动端触觉反馈不消失的问题：显式恢复到正常状态
-        # 移动端不会触发 on_hover 事件，所以需要手动恢复
-        # 使用 try-except 防止按钮已被移除的情况
-        try:
-            if btn_container.page:  # 检查按钮是否还在页面上
-                btn_container.bgcolor = normal_bg
-                btn_container.scale = 1.0
-                btn_container.border = ft.Border.all(1.5, border_color)
-                btn_container.update()
-        except Exception:
-            # 如果按钮已被移除或替换，忽略错误
-            pass
+        # 🔥 智能状态恢复：只有按钮不会被替换时才恢复状态
+        if not will_be_replaced:
+            try:
+                if btn_container.page:  # 检查按钮是否还在页面上
+                    btn_container.bgcolor = normal_bg
+                    btn_container.scale = 1.0
+                    btn_container.border = ft.Border.all(1.5, border_color)
+                    btn_container.update()
+            except Exception:
+                # 如果按钮已被移除或替换，忽略错误
+                pass
 
     # 容器定义
     btn_container = ft.Container(
@@ -145,17 +152,9 @@ def get_player_view(page: ft.Page, topic: Topic):
         else:
             video_container.content = ft.Text("视频缺失", color=config.COLOR_TEXT_ERROR)
 
+        # 🔥 关键修复：每次状态切换都重新创建按钮
         controls_row.controls.clear()
-
-        if state_id == 0 or state_id == 1:
-            controls_row.controls = [btn_repeat, btn_forget, btn_correct]
-        elif state_id == 2:
-            if current_q_index < total_questions - 1:
-                controls_row.controls = [btn_next]
-            else:
-                controls_row.controls = [btn_finish]
-        elif state_id == 3:
-            controls_row.controls = [btn_retry, btn_skip]
+        controls_row.controls = create_buttons_for_state(state_id)
 
         # 视频切换：重置为播放状态 (is_paused = False)
         nonlocal is_paused, ignore_first_completion
@@ -398,13 +397,28 @@ def get_player_view(page: ft.Page, topic: Topic):
 
     # --- UI Elements ---
 
-    btn_repeat = create_glass_button("听不清 / 再说一遍", ft.Icons.HEARING, config.COLOR_BTN_REPEAT, on_repeat_click)
-    btn_forget = create_glass_button("忘记了", ft.Icons.HELP_OUTLINE, config.COLOR_BTN_FORGET, on_forget_click)
-    btn_correct = create_glass_button("回答正确", ft.Icons.CHECK_CIRCLE, config.COLOR_BTN_CORRECT, on_correct_click)
-    btn_next = create_glass_button("下一题", ft.Icons.ARROW_FORWARD, config.COLOR_BTN_NEXT, on_next_or_skip_click)
-    btn_finish = create_glass_button("完成 - 返回菜单", ft.Icons.HOME, config.COLOR_BTN_FINISH, on_finish_click)
-    btn_retry = create_glass_button("重试本题", ft.Icons.REFRESH, config.COLOR_BTN_RETRY, on_retry_click)
-    btn_skip = create_glass_button("跳过", ft.Icons.SKIP_NEXT, config.COLOR_BTN_SKIP, on_next_or_skip_click)
+    # 按钮创建函数 - 在 update_ui_state 中动态创建
+    def create_buttons_for_state(state_id):
+        """根据状态创建对应的按钮组"""
+        if state_id == 0 or state_id == 1:
+            # State 0 和 1 使用相同的按钮组
+            # "听不清"按钮不会被替换（同一状态内），其他按钮会被替换
+            return [
+                create_glass_button("听不清 / 再说一遍", ft.Icons.HEARING, config.COLOR_BTN_REPEAT, on_repeat_click, will_be_replaced=False),
+                create_glass_button("忘记了", ft.Icons.HELP_OUTLINE, config.COLOR_BTN_FORGET, on_forget_click, will_be_replaced=True),
+                create_glass_button("回答正确", ft.Icons.CHECK_CIRCLE, config.COLOR_BTN_CORRECT, on_correct_click, will_be_replaced=True)
+            ]
+        elif state_id == 2:
+            if current_q_index < total_questions - 1:
+                return [create_glass_button("下一题", ft.Icons.ARROW_FORWARD, config.COLOR_BTN_NEXT, on_next_or_skip_click, will_be_replaced=True)]
+            else:
+                return [create_glass_button("完成 - 返回菜单", ft.Icons.HOME, config.COLOR_BTN_FINISH, on_finish_click, will_be_replaced=True)]
+        elif state_id == 3:
+            return [
+                create_glass_button("重试本题", ft.Icons.REFRESH, config.COLOR_BTN_RETRY, on_retry_click, will_be_replaced=True),
+                create_glass_button("跳过", ft.Icons.SKIP_NEXT, config.COLOR_BTN_SKIP, on_next_or_skip_click, will_be_replaced=True)
+            ]
+        return []
 
     controls_row = ft.Row(
         spacing=15,
@@ -511,7 +525,8 @@ def get_player_view(page: ft.Page, topic: Topic):
                 on_complete=on_video_completed
             )
         
-        controls_row.controls = [btn_repeat, btn_forget, btn_correct]
+        # 🔥 初始化时也使用新的按钮创建逻辑
+        controls_row.controls = create_buttons_for_state(0)
         
         # 初始化状态同步：确保中间按钮隐藏 (因为默认自动播放)
         central_play_btn.visible = False
