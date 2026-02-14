@@ -12,10 +12,10 @@ import utils
 import config
 
 
-def create_glass_button(text, icon, color, on_click_handler, expand=True, will_be_replaced=False):
+def create_glass_button(text, icon, color, on_click_handler, expand=True):
     """
     创建有色毛玻璃按钮 (Tinted Glass)
-    will_be_replaced: 如果为True，表示按钮在点击后会被替换，不需要恢复状态
+    优化版：移除所有 sleep，让触觉反馈由 Flet 的动画系统托管
     """
     import asyncio
 
@@ -26,39 +26,25 @@ def create_glass_button(text, icon, color, on_click_handler, expand=True, will_b
     border_color = ft.Colors.with_opacity(0.3, ft.Colors.WHITE)
     hover_border_color = ft.Colors.with_opacity(0.6, ft.Colors.WHITE)
 
-    # 点击事件包装器
+    # 🔥 简化的点击事件包装器 - 移除所有 sleep
     async def wrapped_on_click(e):
-        # 按下效果
-        btn_container.bgcolor = pressed_bg
-        btn_container.scale = 0.96
-        btn_container.update()
-        await asyncio.sleep(0.05)  # 短暂延迟，让用户感受到按下效果
-        
-        # 切换到悬停状态
-        btn_container.bgcolor = hover_bg
-        btn_container.scale = 1.0
-        btn_container.border = ft.Border.all(1.5, hover_border_color)
-        btn_container.update()
-        await asyncio.sleep(0.05)
-        
-        # 执行业务逻辑
+        # 执行业务逻辑（不再有任何延迟）
         if on_click_handler:
             if asyncio.iscoroutinefunction(on_click_handler):
                 await on_click_handler(e)
             else:
                 on_click_handler(e)
         
-        # 🔥 智能状态恢复：只有按钮不会被替换时才恢复状态
-        if not will_be_replaced:
-            try:
-                if btn_container.page:  # 检查按钮是否还在页面上
-                    btn_container.bgcolor = normal_bg
-                    btn_container.scale = 1.0
-                    btn_container.border = ft.Border.all(1.5, border_color)
-                    btn_container.update()
-            except Exception:
-                # 如果按钮已被移除或替换，忽略错误
-                pass
+        # 🔥 移动端状态恢复：按钮被重新创建后，这段代码不会执行
+        # 如果按钮没有被替换（如"听不清"按钮），则恢复正常状态
+        try:
+            if btn_container.page:
+                btn_container.bgcolor = normal_bg
+                btn_container.scale = 1.0
+                btn_container.border = ft.Border.all(1.5, border_color)
+                btn_container.update()
+        except Exception:
+            pass
 
     # 容器定义
     btn_container = ft.Container(
@@ -81,8 +67,10 @@ def create_glass_button(text, icon, color, on_click_handler, expand=True, will_b
             color=ft.Colors.BLACK_26, 
             offset=ft.Offset(0, 4),
         ),
-        clip_behavior=ft.ClipBehavior.HARD_EDGE, 
-        animate=ft.Animation(100, ft.AnimationCurve.EASE_OUT),
+        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+        # 🔥 关键：使用 animate_scale 让 Flet 托管缩放动画
+        animate=ft.Animation(150, ft.AnimationCurve.EASE_OUT),
+        animate_scale=ft.Animation(150, ft.AnimationCurve.EASE_OUT_BACK),
         on_click=wrapped_on_click,
     )
     
@@ -90,11 +78,13 @@ def create_glass_button(text, icon, color, on_click_handler, expand=True, will_b
         btn_container.expand = True
     
     def on_tap_down(e):
+        """按下效果：缩小+变深色"""
         btn_container.bgcolor = pressed_bg
         btn_container.scale = 0.96
         btn_container.update()
     
     def on_hover(e):
+        """悬停效果（桌面端）"""
         is_hovering = e.data == "true"
         btn_container.bgcolor = hover_bg if is_hovering else normal_bg
         current_border = hover_border_color if is_hovering else border_color
@@ -401,22 +391,20 @@ def get_player_view(page: ft.Page, topic: Topic):
     def create_buttons_for_state(state_id):
         """根据状态创建对应的按钮组"""
         if state_id == 0 or state_id == 1:
-            # State 0 和 1 使用相同的按钮组
-            # "听不清"按钮不会被替换（同一状态内），其他按钮会被替换
             return [
-                create_glass_button("听不清 / 再说一遍", ft.Icons.HEARING, config.COLOR_BTN_REPEAT, on_repeat_click, will_be_replaced=False),
-                create_glass_button("忘记了", ft.Icons.HELP_OUTLINE, config.COLOR_BTN_FORGET, on_forget_click, will_be_replaced=True),
-                create_glass_button("回答正确", ft.Icons.CHECK_CIRCLE, config.COLOR_BTN_CORRECT, on_correct_click, will_be_replaced=True)
+                create_glass_button("听不清 / 再说一遍", ft.Icons.HEARING, config.COLOR_BTN_REPEAT, on_repeat_click),
+                create_glass_button("忘记了", ft.Icons.HELP_OUTLINE, config.COLOR_BTN_FORGET, on_forget_click),
+                create_glass_button("回答正确", ft.Icons.CHECK_CIRCLE, config.COLOR_BTN_CORRECT, on_correct_click)
             ]
         elif state_id == 2:
             if current_q_index < total_questions - 1:
-                return [create_glass_button("下一题", ft.Icons.ARROW_FORWARD, config.COLOR_BTN_NEXT, on_next_or_skip_click, will_be_replaced=True)]
+                return [create_glass_button("下一题", ft.Icons.ARROW_FORWARD, config.COLOR_BTN_NEXT, on_next_or_skip_click)]
             else:
-                return [create_glass_button("完成 - 返回菜单", ft.Icons.HOME, config.COLOR_BTN_FINISH, on_finish_click, will_be_replaced=True)]
+                return [create_glass_button("完成 - 返回菜单", ft.Icons.HOME, config.COLOR_BTN_FINISH, on_finish_click)]
         elif state_id == 3:
             return [
-                create_glass_button("重试本题", ft.Icons.REFRESH, config.COLOR_BTN_RETRY, on_retry_click, will_be_replaced=True),
-                create_glass_button("跳过", ft.Icons.SKIP_NEXT, config.COLOR_BTN_SKIP, on_next_or_skip_click, will_be_replaced=True)
+                create_glass_button("重试本题", ft.Icons.REFRESH, config.COLOR_BTN_RETRY, on_retry_click),
+                create_glass_button("跳过", ft.Icons.SKIP_NEXT, config.COLOR_BTN_SKIP, on_next_or_skip_click)
             ]
         return []
 
@@ -435,12 +423,65 @@ def get_player_view(page: ft.Page, topic: Topic):
         content=ft.ProgressRing()
     )
 
-    # Layer 2: 全屏手势层
+    # Layer 2: HUD 覆盖层 - 使用 Column 三明治结构
+    # 🔥 关键改进：GestureDetector 只占据中间区域，不覆盖顶部栏和底部栏
+    
+    # 顶部栏 (Top Bar) - 移除绝对定位，作为 Column 的第一个子元素
+    top_bar_container = ft.Container(
+        bgcolor=config.COLOR_BG_TRANSPARENT,
+        padding=ft.Padding.only(top=20, left=15, right=15, bottom=10),
+        content=ft.Row(
+            [
+                ft.IconButton(ft.Icons.ARROW_BACK, on_click=on_back_nav_click, icon_color=config.COLOR_TEXT_WHITE, icon_size=40),
+                ft.Column(
+                    [
+                        ft.Text(topic.name, color=config.COLOR_TEXT_WHITE, size=config.TEXT_SIZE_MEDIUM, weight=ft.FontWeight.BOLD),
+                        title_text
+                    ],
+                    spacing=2
+                ),
+                ft.Container(expand=True)
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+        ),
+        opacity=0,
+        offset=ft.Offset(0, -1),  # 向上偏移自身高度（隐藏）
+        animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
+        animate_offset=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
+    )
+
+# 2. 中间手势区域 (GestureDetector)
+    # 🔥 修正：把 expand=True 从内部 Container 移到外层的 GestureDetector 上
+    # 只有这样，Column 才会把它视为“需要填充剩余空间”的组件
     gesture_layer = ft.GestureDetector(
+        expand=True,  # <--- 关键修改：放在这里！
+        on_tap=handle_screen_tap,
+        on_double_tap=toggle_play_pause,
+        content=ft.Container(
+            bgcolor=ft.Colors.TRANSPARENT,
+            # expand=True  <--- 这里原来的可以删掉，或者留着也没影响，最重要的是上面那个
+        )
+    )
+
+    # 底部栏 (Bottom Bar) - 移除绝对定位，作为 Column 的最后一个子元素
+    bottom_bar_container = ft.Container(
+        padding=20,
+        content=controls_row,
+        opacity=0,
+        offset=ft.Offset(0, 1),  # 向下偏移自身高度（隐藏）
+        animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
+        animate_offset=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
+    )
+
+    # HUD Column - 三明治结构
+    hud_column = ft.Column(
+        controls=[
+            top_bar_container,    # 顶部栏
+            gesture_layer,        # 中间手势区（expand=True）
+            bottom_bar_container, # 底部栏
+        ],
+        spacing=0,
         expand=True,
-        on_tap=handle_screen_tap,        # 单击显隐菜单
-        on_double_tap=toggle_play_pause, # 双击暂停/播放
-        content=ft.Container(bgcolor=ft.Colors.TRANSPARENT, expand=True) # 透明实体填充
     )
 
     # Layer 3: 中央巨型播放按钮 (Central Play Button)
@@ -461,52 +502,14 @@ def get_player_view(page: ft.Page, topic: Topic):
         on_click=toggle_play_pause, 
     )
 
-    # Layer 4: 顶部栏 (Top Bar)
-    top_bar_container = ft.Container(
-        top=0, left=0, right=0, # 绝对定位
-        bgcolor=config.COLOR_BG_TRANSPARENT,
-        padding=ft.Padding.only(top=20, left=15, right=15, bottom=10),
-        content=ft.Row(
-            [
-                ft.IconButton(ft.Icons.ARROW_BACK, on_click=on_back_nav_click, icon_color=config.COLOR_TEXT_WHITE, icon_size=40),
-                ft.Column(
-                    [
-                        ft.Text(topic.name, color=config.COLOR_TEXT_WHITE, size=config.TEXT_SIZE_MEDIUM, weight=ft.FontWeight.BOLD),
-                        title_text
-                    ],
-                    spacing=2
-                ),
-                ft.Container(expand=True)
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-        ),
-        opacity=0,
-        offset=ft.Offset(0, -1), 
-        animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
-        animate_offset=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
-    )
-
-    # Layer 5: 底部栏 (Bottom Bar)
-    bottom_bar_container = ft.Container(
-        bottom=0, left=0, right=0, # 绝对定位
-        padding=20,
-        content=controls_row,
-        opacity=0,
-        offset=ft.Offset(0, 1), 
-        animate_opacity=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
-        animate_offset=ft.Animation(500, ft.AnimationCurve.EASE_OUT_CUBIC),
-    )
-
     # --- Final Stack ---
     stack_layers = ft.Stack(
         expand=True,
         alignment=ft.Alignment.CENTER, 
         controls=[
-            video_container,      # Layer 1
-            gesture_layer,        # Layer 2
-            central_play_btn,     # Layer 3
-            top_bar_container,    # Layer 4
-            bottom_bar_container, # Layer 5
+            video_container,  # Layer 1: 视频背景
+            hud_column,       # Layer 2: HUD 三明治（顶部栏 + 手势区 + 底部栏）
+            central_play_btn, # Layer 3: 中央播放按钮（最上层）
         ]
     )
 
