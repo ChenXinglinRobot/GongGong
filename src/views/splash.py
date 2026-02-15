@@ -19,19 +19,12 @@ def get_splash_view(page: ft.Page):
         fit=ft.BoxFit.CONTAIN,
     )
     
-    # 创建列布局（只包含图像）
-    column = ft.Column(
-        controls=[image],
-        alignment=ft.MainAxisAlignment.CENTER,
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-    )
-    
-    # 创建全屏容器
+    # 创建全屏容器，直接包含图像
     container = ft.Container(
-        content=column,
+        content=image,
         expand=True,
         bgcolor="#F6F1DE",  # 与GIF边缘一致
-        alignment=ft.Alignment(0, 0),
+        alignment=ft.Alignment.CENTER,  # 居中显示，确保图片在屏幕内完全可见
     )
     
     # 返回视图和组件引用（文本组件返回None）

@@ -35,6 +35,11 @@ split_per_abi = false  # false = 生成一个通用 APK (推荐用于测试)
 # 安卓应用图标配置（根据Flet文档，icon_android.png会自动被识别）
 bundle_id = "com.gonggong.gonggong"  # 安卓应用唯一标识符
 
+# --- 开屏图片 ---
+[tool.flet.splash]
+color = "#F6F1DE"       # 浅色模式背景 (对应 --splash-color)
+dark_color = "#F6F1DE"  # 深色模式背景 (对应 --splash-dark-color)
+
 # --- 关键：安卓权限配置 ---
 [tool.flet.android.permission]
 "android.permission.INTERNET" = true

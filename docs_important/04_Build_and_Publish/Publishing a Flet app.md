@@ -1,8 +1,10 @@
-# Publishing a Flet App
-
-The Flet CLI provides the `flet build` command to package a Flet app into a standalone executable or installable package for distribution.
+这是一个结构化、清晰且易于AI与人类阅读的Markdown格式文档，基于你提供的“Publishing a Flet app”内容进行了整理。
 
 ---
+
+# Publishing a Flet app
+
+Flet CLI provides the `flet build` command to package a Flet app into a standalone executable or installable package for distribution.
 
 ## Prerequisites
 
@@ -10,23 +12,27 @@ The Flet CLI provides the `flet build` command to package a Flet app into a stan
 
 Use the following matrix to choose which OS to run `flet build` on for each target platform:
 
-| Run on | apk / aab | ipa | macOS | Linux | Windows | Web |
+| Run on | apk / aab | ipa | macos | linux | windows | web |
 | --- | --- | --- | --- | --- | --- | --- |
 | **macOS** | ✅ | ✅ | ✅ |  |  | ✅ |
 | **Windows** | ✅ |  |  |  | ✅ | ✅ |
 | **Linux** | ✅ |  |  | ✅ |  | ✅ |
 
-*(Note: Windows can build Android via WSL)*
+> **Note:** On Windows, Android builds (`apk`/`aab`) are supported via WSL.
 
 ### Flutter SDK
 
-Flutter is required to build Flet apps. If not found in the system `PATH`, it will be automatically downloaded to `$HOME/flutter/{version}` during the first build.
+**Flutter** is required to build Flet apps for any platform.
+If the minimum required version of the Flutter SDK is not already available in the system `PATH`, it will be automatically downloaded and installed (in the `$HOME/flutter/{version}` directory) during the first build process.
 
-> **Tip:** To check the recommended Flutter SDK version for your Flet installation:
+> **Tip:** The recommended (minimum required) Flutter SDK version depends on the Flet version installed.
+> You can view it by running:
 > ```bash
 > flet --version
 > # OR
 > uv run python -c "import flet.version; print(flet.version.flutter_version)"
+> # OR
+> python -c "import flet.version; print(flet.version.flutter_version)"
 > 
 > ```
 > 
@@ -36,10 +42,10 @@ Flutter is required to build Flet apps. If not found in the system `PATH`, it wi
 
 ## Project Structure
 
-The `flet build` command assumes a minimal project structure:
+The `flet build` command assumes the following minimal Flet project structure:
 
 ```text
-📁 <project-name>
+📁 .
 ├── README.md
 ├── pyproject.toml
 └── 📁 src
@@ -49,210 +55,318 @@ The `flet build` command assumes a minimal project structure:
 
 ```
 
-> **Tip:** Use `flet create <project-name>` to quickly set up this structure.
+> **Tip:** To quickly set up a project with the correct structure, use:
+> `flet create <project-name>`
 
-### Configuration Files
+### Using `requirements.txt`
 
-* **`pyproject.toml` (Recommended):** Used to specify dependencies and build settings.
-* **`requirements.txt`:** Can be used instead of `pyproject.toml` for dependencies.
-* *Note:* Do not use `pip freeze`. Hand-pick only direct dependencies.
-* *Note:* If both files exist, `requirements.txt` is ignored.
+Instead of `pyproject.toml`, you can use `requirements.txt`.
 
-
+* If both files are present, `flet build` will **ignore** `requirements.txt`.
+* **Do not** use `pip freeze > requirements.txt`. Hand-pick only direct dependencies (including `flet`) to avoid platform incompatibilities.
 
 ---
 
-## How It Works
+## How it works
 
-When you run `flet build <target_platform>`, the pipeline follows these steps:
+When you run `flet build <target_platform>`, the pipeline is:
 
-1. **Create Flutter Project:** Generates a project in `{flet_app_directory}/build/flutter` using a template. This shell app embeds your Python code and uses `serious_python` to run it.
-2. **Copy Assets:** Copies custom icons and splash images from your `assets` folder.
+1. **Create Flutter Project:** Creates a project in `{flet_app_directory}/build/flutter` from a template. This embeds your Python app and uses `serious_python` to render the UI. (Cached for rapid iteration; use `--clear-cache` to force rebuild).
+2. **Copy Assets:** Copies custom icons and splash images from `assets` to the Flutter project.
 * Generates icons via `flutter_launcher_icons`.
 * Generates splash screens via `flutter_native_splash`.
 
 
-3. **Package Python App:**
-* Installs dependencies from PyPI.
+3. **Package Python App:** Uses `serious_python` package.
+* Installs dependencies from PyPI (or configured sources).
 * Compiles `.py` to `.pyc` (if configured).
-* Adds project files (excluding those in `.gitignore` or specified excludes).
+* Adds project files (except excluded ones) to app assets.
 
 
-4. **Build:** Runs `flutter build <target_platform>` to produce the final binary.
-5. **Output:** Copies the result to the output directory.
+4. **Build:** Runs `flutter build <target_platform>`.
+5. **Output:** Copies artifacts to the output directory.
 
 ---
 
-## Configuration (`pyproject.toml`)
+## Configuration Options
 
-Flet loads settings from `pyproject.toml` using dot-separated paths (e.g., `[tool.flet.app]`).
+**Placeholders used below:**
 
-### Identity & Naming
+* `<target_platform>`: `apk`, `aab`, `ipa`, `web`, `macos`, `windows`, `linux`.
+* `<PLATFORM>`: Config namespace (e.g., `android`, `ios`, `web`, `macos`, `windows`, `linux`).
+* `<flet_app_directory>`: Project root containing `pyproject.toml`.
 
-| Setting | Description | Hierarchy (Precedence) |
-| --- | --- | --- |
-| **Entry Point** | The Python module that starts the app. | `--module-name` → `[tool.flet.app].module` → `"main"` |
-| **Project Name** | Base identifier for bundle IDs (normalized). | `--project` → `[project].name` → Directory name |
-| **Product Name** | User-facing display name (Window titles). | `--product` → `[tool.flet].product` → `--project` |
-| **Artifact Name** | On-disk filename (e.g., `.exe`, `.app`). | `--artifact` → `[tool.flet.<PLATFORM>].artifact` → `--project` |
-| **Org Name** | Reverse domain notation (e.g., `com.mycompany`). | `--org` → `[tool.flet.<PLATFORM>].org` → `"com.flet"` |
-| **Bundle ID** | Unique app ID (e.g., `com.company.app`). | `--bundle-id` → `[tool.flet.<PLATFORM>].bundle_id` |
+### `pyproject.toml` Structure
+
+Settings can be nested or dot-separated.
+
+* **Form 1 (Preferred):** `[tool.flet.section] key = "value"`
+* **Form 2:** `[tool.flet] section.key = "value"`
+
+### Core Properties
+
+| Property | Description | Resolution Order | Example |
+| --- | --- | --- | --- |
+| **App path** | Root directory of Python app. | 1. `[tool.flet.app].path`<br>
+
+<br>2. `<python_app_path>` | `path = "src"` |
+| **Entry point** | Python module starting the app. | 1. `--module-name`<br>
+
+<br>2. `[tool.flet.app].module`<br>
+
+<br>3. `"main"` | `module = "app.py"` |
+| **Project name** | Internal base identifier (normalized). | 1. `--project`<br>
+
+<br>2. `[project].name`<br>
+
+<br>3. Directory name | `name = "my_app"` |
+| **Product name** | User-facing display name. | 1. `--product`<br>
+
+<br>2. `[tool.flet].product`<br>
+
+<br>3. `--project`... | `product = "My App"` |
+| **Artifact name** | On-disk name for exe/bundle. | 1. `--artifact`<br>
+
+<br>2. `[tool.flet.<PLATFORM>].artifact`<br>
+
+<br>3. `--project`... | `artifact = "My App"` |
+
+### Platform Specific Metadata
+
+| Property | Platform | Description | Resolution Order |
+| --- | --- | --- | --- |
+| **Organization** | Mobile/Desktop | Reverse domain notation (Prefix for Bundle ID). | 1. `--org`<br>
+
+<br>2. `[tool.flet].org`<br>
+
+<br>3. `"com.flet"` |
+| **Bundle ID** | Mobile/Desktop | Unique App ID. | 1. `--bundle-id`<br>
+
+<br>2. `[tool.flet].bundle_id`<br>
+
+<br>3. Derived from Org+Project |
+| **Company** | Win/Mac | Displayed in "About" dialogs. | 1. `--company`<br>
+
+<br>2. `[tool.flet].company` |
+| **Copyright** | Win/Mac | Copyright text. | 1. `--copyright`<br>
+
+<br>2. `[tool.flet].copyright` |
 
 ### Versioning
 
-* **Build Number:** Integer used internally (must increment). Defaults to `pubspec.yaml` version if not set.
-* **Build Version:** User-facing string (e.g., `1.0.0`).
+| Property | Description | Resolution Order |
+| --- | --- | --- |
+| **Build Number** | Integer. Must increment for new builds. | 1. `--build-number`<br>
+
+<br>2. `[tool.flet].build_number`<br>
+
+<br>3. `pubspec.yaml` |
+| **Build Version** | String (`x.y.z`). User-facing version. | 1. `--build-version`<br>
+
+<br>2. `[project].version`<br>
+
+<br>3. `[tool.poetry].version`<br>
+
+<br>4. `pubspec.yaml` |
 
 ### Dependencies
 
-Dependencies are resolved in this order:
+**App Dependencies Resolution:**
 
 1. `[tool.poetry].dependencies` OR `[project].dependencies`
-2. `[tool.flet.<PLATFORM>].dependencies` (Appended to above)
-3. `requirements.txt` (If above are empty)
+2. APPEND `[tool.flet.<PLATFORM>].dependencies`
+3. Fallback: `requirements.txt`
+4. Fallback: `flet==<version>`
 
-> **Note:** For Android/iOS, use **Source Packages** (`--source-packages`) if you need to install specific dependencies from source distributions (sdists) instead of binary wheels.
+**Source Packages (Android/iOS only):**
+Allows installing specific dependencies from source distributions (sdists) instead of binary wheels.
+
+* Config: `[tool.flet].source_packages = ["pkg1", "pkg2"]`
 
 ---
 
-## Assets & UI
+## Assets
 
 ### Icons
 
-Place image files in the `assets` directory. Flet automatically detects them based on filenames:
+Place image files in the `assets` directory. If platform-specific icon is missing, `icon.png` is used.
 
-| Platform | Filename | Recommended Size |
-| --- | --- | --- |
-| **iOS** | `icon_ios.png` | ≥ 1024×1024 px (No alpha) |
-| **Android** | `icon_android.png` | ≥ 192×192 px |
-| **Web** | `icon_web.png` | ≥ 512×512 px |
-| **Windows** | `icon_windows.ico` | 256×256 px |
-| **macOS** | `icon_macos.png` | ≥ 1024×1024 px |
+| Platform | File Name | Size | Note |
+| --- | --- | --- | --- |
+| **iOS** | `icon_ios.png` | ≥ 1024x1024 | No transparency allowed. |
+| **Android** | `icon_android.png` | ≥ 192x192 |  |
+| **Web** | `icon_web.png` | ≥ 512x512 |  |
+| **Windows** | `icon_windows.ico` | 256x256 | .png automatically converted to .ico. |
+| **macOS** | `icon_macos.png` | ≥ 1024x1024 |  |
 
 ### Splash Screen
 
-Supported on Android, iOS, and Web. Customize by placing images in `assets`.
+Supported on **Android, iOS, Web**. Place in `assets`.
 
-**Fallback Order (Light Mode):**
-`splash_<platform>.png` → `splash.png` → `icon.png`
+**Fallback Order:**
+
+* **Dark:** `splash_dark_<plat>.png` → `splash_dark.png` → `splash_<plat>.png` → `splash.png` → `icon.png`
+* **Light:** `splash_<plat>.png` → `splash.png` → `icon.png`
 
 **Configuration:**
 
-* **Colors:** `--splash-color` and `--splash-dark-color`.
-* **Disable:** `--no-android-splash`, `--no-ios-splash`, `--no-web-splash`.
+```toml
+[tool.flet.splash]
+color = "#ffffff"
+dark_color = "#333333"
+android = false  # Disable splash
 
-### Other Screens
+```
 
-* **Boot Screen:** Shown while `app.zip` is extracted (Desktop/Mobile). Config: `[tool.flet.app.boot_screen]`.
-* **Startup Screen:** Shown while Python runtime starts. Config: `[tool.flet.app.startup_screen]`.
-* **Hidden Window:** Start desktop apps hidden to perform setup. Config: `hide_window_on_start = true`.
+### Other Screens (Win/Mac/Linux/Mobile)
+
+* **Boot Screen:** Shown while app extracts.
+* **Startup Screen:** Shown while Python runtime starts.
+
+```toml
+[tool.flet.app.boot_screen]
+show = true
+message = "Preparing..."
+
+```
+
+* **Hidden Window (Desktop):** Start hidden to perform setup.
+* `[tool.flet.app].hide_window_on_start = true`
+
+
 
 ---
 
 ## Advanced Configuration
 
-### Permissions (Mobile & macOS)
+### Deep Linking (Mobile)
 
-You can use predefined **bundles** in `pyproject.toml` or via CLI (`--permissions`) to automatically configure `Info.plist` and `AndroidManifest.xml`.
+Requires both Scheme and Host.
 
-**Available Bundles:**
+```toml
+[tool.flet.deep_linking]
+scheme = "https"
+host = "mydomain.com"
 
-* `location`: Adds usage descriptions and access permissions.
-* `camera`: Adds camera usage descriptions and hardware features.
-* `microphone`: Adds record audio permissions.
-* `photo_library`: Adds read/write access to media.
+```
 
-### Compilation & Cleanup
+### Target Architecture (Android/macOS)
 
-* **Compile:** Pre-compile `.py` files to `.pyc` to obscure code slightly and potentially improve startup.
-* `--compile-app`, `--compile-packages`.
+Build for specific CPU architectures to reduce size.
 
+```toml
+[tool.flet.macos]
+target_arch = ["arm64", "x86_64"]
 
-* **Cleanup:** Remove unnecessary files to reduce package size.
-* `--cleanup-app`, `--cleanup-packages`.
-* Use `--cleanup-app-files` with globs to exclude specific patterns (e.g., `**/*.c`).
+```
 
+### Exclusion & Compilation
 
+* **Exclude:** `[tool.flet.app].exclude = [".git", ".venv"]`
+* **Compilation:** Compile `.py` to `.pyc` or clean up junk files.
 
-### Deep Linking
+```toml
+[tool.flet.compile]
+app = true        # Compile app files
+packages = true   # Compile site-packages
 
-Allows users to open your app via URLs (e.g., `myapp://open`).
-Requires both **Scheme** and **Host**.
+```
 
-* CLI: `--deep-linking-scheme https --deep-linking-host mydomain.com`
+### Permissions (Mobile/macOS)
+
+Flet provides "bundles" to simplify permission configuration.
+
+| Bundle | Features |
+| --- | --- |
+| `location` | Adds Location usage descriptions (iOS/Mac) and Access permissions (Android). |
+| `camera` | Adds Camera usage descriptions (iOS/Mac) and Hardware permissions (Android). |
+| `microphone` | Adds Microphone usage descriptions (iOS/Mac) and Record Audio permissions (Android). |
+| `photo_library` | Adds Photo Library usage (iOS/Mac) and Read Media permissions (Android). |
+
+**Usage:**
+
+```toml
+[tool.flet]
+permissions = ["location", "microphone"]
+
+```
 
 ---
 
-## CI/CD: GitHub Actions Example
+## Build Templates
 
-You can automate builds using GitHub Actions. Below is a comprehensive workflow example:
+Flet uses a `cookiecutter` template to generate the Flutter project.
+
+| Property | Description | Default |
+| --- | --- | --- |
+| **Source** | URL/Path to template. | `gh:flet-dev/flet-build-template` |
+| **Reference** | Branch/Tag/Commit. | `<flet_version>` |
+| **Directory** | Subdirectory in repo. | Root |
+
+```toml
+[tool.flet.template]
+url = "gh:flet-dev/flet-build-template"
+ref = "main"
+
+```
+
+## Flutter Specifics
+
+* **Build Args:** Pass raw arguments to `flutter build`. *Use with caution.*
+```toml
+[tool.flet.flutter]
+build_args = ["--obfuscate"]
+
+```
+
+
+* **Dependencies:** Override `pubspec.yaml` entries.
+```toml
+[tool.flet.flutter.pubspec.dependencies]
+pkg_1 = "^1.2.3"
+
+```
+
+
+
+---
+
+## Logging & CI/CD
+
+### Verbose Logging
+
+* Use `-v` or `-vv` with `flet build` for detailed output.
+* **Console Output:** Python `print` and `logging` are redirected to `console.log` in packaged apps.
+* **Debug:** `sys.exit(100)` shows the log in a scrollable window.
+
+### CI/CD (GitHub Actions)
+
+You can automate builds using GitHub Actions. Below is a summarized workflow structure:
 
 ```yaml
 name: Build Flet App
-
-on:
-  push:
-  pull_request:
-  workflow_dispatch:
-
-env:
-  UV_PYTHON: 3.12
-  PYTHONUTF8: 1
-  BUILD_NUMBER: 1
-  BUILD_VERSION: 1.0.0
-  FLET_CLI_NO_RICH_OUTPUT: 1
-
+# ... triggers ...
 jobs:
   build:
-    name: Build ${{ matrix.name }}
-    runs-on: ${{ matrix.runner }}
     strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux
-            runner: ubuntu-latest
-            build_cmd: "flet build linux --yes --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION"
-            artifact_path: build/linux
-            needs_linux_deps: true
-          - name: windows
-            runner: windows-latest
-            build_cmd: "flet build windows --yes --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION"
-            artifact_path: build/windows
-            needs_linux_deps: false
-          - name: macos
-            runner: macos-latest
-            build_cmd: "flet build macos --yes --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION"
-            artifact_path: build/macos
-            needs_linux_deps: false
-          - name: web
-            runner: ubuntu-latest
-            build_cmd: "flet build web --yes --verbose"
-            artifact_path: build/web
-            needs_linux_deps: false
-
+       matrix:
+         include:
+           - name: linux
+             runner: ubuntu-latest
+             build_cmd: "flet build linux ..."
+           - name: apk
+             runner: ubuntu-latest
+             build_cmd: "flet build apk ..."
+           # ... other platforms ...
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
       - name: Install Linux dependencies
         if: matrix.needs_linux_deps
-        shell: bash
         run: |
-          sudo apt update
-          sudo apt-get install -y --no-install-recommends clang ninja-build libgtk-3-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev pkg-config
-
+           # ... apt-get install GStreamer, GTK, etc ...
       - name: Build app
-        shell: bash
         run: uv run ${{ matrix.build_cmd }}
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v5
-        with:
-          name: ${{ matrix.name }}-build-artifact
-          path: ${{ matrix.artifact_path }}
+      - uses: actions/upload-artifact@v5
 
 ```
