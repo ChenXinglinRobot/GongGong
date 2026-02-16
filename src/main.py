@@ -24,7 +24,19 @@ async def main(page: ft.Page):
     # 注意：不再需要创建全局的 FilePicker 或 PermissionHandler
     # 它们将在需要时直接实例化使用
     
-    page.update()
+    # ==========================================
+    # 🔥 Flet 0.80.5 修复：使用 AudioManager 统一管理音频
+    # AudioManager 会将 Audio 控件添加到 page.overlay
+    # 确保音频控件在路由切换时不被清除
+    # ==========================================
+    from audio_manager import AudioManager
+    
+    # 初始化音频管理器
+    audio_manager = AudioManager(page)
+    
+    # 通过 page.data 共享给各个 view
+    page.data = page.data or {}
+    page.data["audio_manager"] = audio_manager
 
     # ==========================================
     # 2. 读取配置 (使用 ft.SharedPreferences())

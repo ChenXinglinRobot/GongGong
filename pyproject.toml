@@ -12,6 +12,7 @@ dependencies = [
     "flet>=0.80.5",
     "flet-video>=0.80.5",
     "flet-permission-handler>=0.80.5",
+    "flet-audio>=0.80.5",
 ]
 
 # --- Flet 配置核心部分 ---

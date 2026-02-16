@@ -15,6 +15,20 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
     # 初始化触觉反馈组件
     hf = ft.HapticFeedback()
     
+    # 🎵 Flet 0.80.5 修复：从全局 page.data 获取 AudioManager
+    audio_manager = page.data.get("audio_manager")
+    
+    # 🔥 背景音乐自动播放（在视图加载后）
+    async def start_bgm():
+        if audio_manager:
+            await audio_manager.play_bgm()
+    
+    # 异步启动背景音乐
+    page.run_task(start_bgm)
+    
+    # 🎵 获取音频控件列表（必须作为 View 的一级子元素）
+    audio_controls = audio_manager.get_controls() if audio_manager else []
+    
     # --- 1. 数据准备 ---
     first_cover = topics[0].cover_image_path if topics else ""
     
@@ -276,11 +290,18 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         # 2. 状态流转
         if current_state == CardState.SELECTION:
             current_state = CardState.FOCUS
+            # 🛡️ 防御性播放：捕获可能的 Session 错误
+            # 🎵 播放卡片聚焦音效
+            if audio_manager:
+                await audio_manager.play_card_focus()
             render_cards() 
             right_panel.scale = 1.2 # 放大
             right_panel.update()
         elif current_state == CardState.FOCUS:
             current_state = CardState.ENTER
+            # 🎵 播放进入话题音效
+            if audio_manager:
+                await audio_manager.play_topic_start()
             real_topic = get_topic_by_index(round(current_scroll_index))
             await on_topic_enter(real_topic)
     
@@ -321,8 +342,11 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         # 🔥 触觉反馈：Selection Click - 滑动跨过卡片时的"咔哒"感（带防抖）
         current_index = round(current_scroll_index)
         if current_index != last_vibration_index:
-            # 跨过了新卡片，触发震动
+            # 跨过了新卡片，触发震动和音效
             asyncio.create_task(hf.selection_click())
+            # 🎵 播放滚动音效
+            if audio_manager:
+                asyncio.create_task(audio_manager.play_wheel_tick())
             last_vibration_index = current_index
         
         render_cards(is_dragging=True)
@@ -390,6 +414,10 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         # 🔥 触觉反馈：Heavy Impact - 厚重的确认感
         await hf.heavy_impact()
         
+        # 🎵 播放按钮点击音效
+        if audio_manager:
+            await audio_manager.play_welcome_confirm()
+        
         # 恢复到hover状态
         enter_btn.scale = 1.05
         enter_btn.bgcolor = ft.Colors.with_opacity(0.35, ft.Colors.AMBER_ACCENT)
@@ -455,9 +483,13 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         expand=True,
     )
 
+    # 返回视图，音频控件必须作为 View 的一级子元素
     return ft.View(
         route="/",
-        controls=[root],  # ✅ 修正：HapticFeedback 是 Service，不需要挂载到 UI 树中
+        controls=[
+            *audio_controls,  # 🎵 音频控件作为一级子元素
+            root              # 原有的界面 UI
+        ],
         padding=0,
         bgcolor=ft.Colors.BLACK,
     )

@@ -54,6 +54,18 @@ wheels = [
 ]
 
 [[package]]
+name = "flet-audio"
+version = "0.80.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flet" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2b/52/0333f32502b7028daf376e7558857ed6ec3048bb6b40f7046c875dcf0164/flet_audio-0.80.5.tar.gz", hash = "sha256:40ca4a9b0c120fc86f31c92be70a08498014dd88a7888c2d46f361ba83aec027", size = 19307, upload-time = "2026-01-30T00:44:51.631Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d6/d7/dda2562ede3accde450cb1f586f68f0b7a9a77de129509371e4759f85cae/flet_audio-0.80.5-py3-none-any.whl", hash = "sha256:c0a210762321a2ef92d03f2bd1ab28ea68238e194f4222c011090b9a03c108ee", size = 20876, upload-time = "2026-01-30T00:44:52.365Z" },
+]
+
+[[package]]
 name = "flet-permission-handler"
 version = "0.80.5"
 source = { registry = "https://pypi.org/simple" }
@@ -83,6 +95,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "flet" },
+    { name = "flet-audio" },
     { name = "flet-permission-handler" },
     { name = "flet-video" },
 ]
@@ -90,6 +103,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "flet", specifier = ">=0.80.5" },
+    { name = "flet-audio", specifier = ">=0.80.5" },
     { name = "flet-permission-handler", specifier = ">=0.80.5" },
     { name = "flet-video", specifier = ">=0.80.5" },
 ]
