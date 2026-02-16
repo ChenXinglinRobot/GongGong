@@ -32,6 +32,7 @@ def get_splash_view(page: ft.Page):
         route="/splash",
         controls=[container],
         padding=0,
+        bgcolor="#F6F1DE",
     ), image, None
 
 async def start_splash_animation(page: ft.Page, image: ft.Image, text: ft.Text):
