@@ -51,8 +51,17 @@ async def start_splash_animation(page: ft.Page, image: ft.Image, text: ft.Text):
     image.opacity = 1
     page.update()
     
+    # 等待视图完全渲染后再播放音效（给音频服务更多时间准备）
+    await asyncio.sleep(0.5)
+    
+    # 从page.data获取音频管理器并播放开屏音效
+    audio_manager = page.data.get("audio_manager")
+    if audio_manager:
+        # 异步播放音效，不阻塞动画
+        asyncio.create_task(audio_manager.play_splash())
+    
     # 等待动画完成（2秒淡入 + 2秒展示）
-    await asyncio.sleep(4)
+    await asyncio.sleep(3.5)  # 总等待时间4秒
     
     # 跳转到根路由（welcome视图）
     await page.push_route("/")

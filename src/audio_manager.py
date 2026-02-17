@@ -8,7 +8,7 @@
 
 import flet as ft
 import flet_audio as fta
-
+import asyncio
 
 class AudioManager:
     """音频管理器类，统一管理所有音频控件"""
@@ -26,7 +26,7 @@ class AudioManager:
         self.bgm = fta.Audio(
             src="/audio/bgm/ambient_loop.wav",
             autoplay=False,
-            volume=0.3,  # ✅ 调小音量：从 0.6 改为 0.3
+            volume=0.2,  # ✅ 调小音量：从 0.6 改为 0.3
             release_mode=fta.ReleaseMode.LOOP
         )
         
@@ -40,7 +40,7 @@ class AudioManager:
         self.se_wheel_tick = fta.Audio(
             src="/audio/se/wheel_tick.wav",
             autoplay=False,
-            volume=0.8,
+            volume=1.0,
             release_mode=fta.ReleaseMode.STOP
         )
         
@@ -57,6 +57,12 @@ class AudioManager:
             volume=1.0,
             release_mode=fta.ReleaseMode.STOP
         )
+        
+        self.se_splash = fta.Audio(
+            src="/audio/se/splash_logo.wav",
+            autoplay=False,
+            release_mode=fta.ReleaseMode.STOP
+        )
     
     def get_controls(self) -> list:
         """
@@ -70,7 +76,8 @@ class AudioManager:
             self.se_welcome_confirm,
             self.se_wheel_tick,
             self.se_card_focus,
-            self.se_topic_start
+            self.se_topic_start,
+            self.se_splash
         ]
     
     async def play_bgm(self):
@@ -116,3 +123,10 @@ class AudioManager:
             await self.se_topic_start.play()
         except Exception as e:
             print(f"话题开始音效播放失败: {e}")
+    
+    async def play_splash(self):
+        """播放开屏音效"""
+        try:
+            await self.se_splash.play()
+        except Exception as e:
+            print(f"开屏音效播放失败: {e}")
