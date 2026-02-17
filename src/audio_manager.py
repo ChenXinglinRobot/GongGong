@@ -26,7 +26,7 @@ class AudioManager:
         self.bgm = fta.Audio(
             src="/audio/bgm/ambient_loop.wav",
             autoplay=False,
-            volume=0.6,
+            volume=0.3,  # ✅ 调小音量：从 0.6 改为 0.3
             release_mode=fta.ReleaseMode.LOOP
         )
         

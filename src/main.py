@@ -68,12 +68,28 @@ async def main(page: ft.Page):
         # 🔥 步骤 A: 只清理视图，保留全局 overlay 组件
         page.views.clear()
         
-        # 路由分发
+        # 🔥 步骤 B: 根据路由控制 BGM
+        # 从播放器页面离开时停止 BGM，进入欢迎页面时 BGM 会自动播放
         try:
             current_route = e.route
         except AttributeError:
             current_route = page.route
             
+        # 🎵 BGM 控制逻辑
+        if current_route.startswith("/play/"):
+            # 进入播放器页面时停止 BGM
+            if audio_manager:
+                await audio_manager.stop_bgm()
+                print("进入播放器页面，停止背景音乐")
+        elif current_route == "/setup":
+            # 进入设置页面时停止 BGM
+            if audio_manager:
+                await audio_manager.stop_bgm()
+                print("进入设置页面，停止背景音乐")
+        # 进入欢迎页面（/）时 BGM 会自动在 welcome.py 中播放
+        # 进入开屏页面（/splash）时不需要处理 BGM
+            
+        # 路由分发
         if current_route == "/splash":
             # 获取splash视图和组件引用
             splash_view, image, text = views.get_splash_view(page)

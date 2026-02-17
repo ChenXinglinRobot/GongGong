@@ -13,7 +13,7 @@ def get_splash_view(page: ft.Page):
     """
     # 创建图像组件
     image = ft.Image(
-        src="assets/splash_anim_fixed.gif",
+        src="/splash_anim_fixed.gif",  # ✅ 修复路径：以 / 开头的绝对路径
         opacity=0,  # 初始透明
         animate_opacity=2000,  # 2秒淡入动画
         fit=ft.BoxFit.CONTAIN,
