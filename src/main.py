@@ -25,14 +25,20 @@ async def main(page: ft.Page):
     # 它们将在需要时直接实例化使用
     
     # ==========================================
-    # 🔥 Flet 0.80.5 修复：使用 AudioManager 统一管理音频
-    # AudioManager 会将 Audio 控件添加到 page.overlay
-    # 确保音频控件在路由切换时不被清除
+    # 🔥 Flet 0.80.5 修复：Audio 是 Service，注册到 page.services
+    # 根据 Flet 作者 (FeodorFitsner) 的官方指导：
+    # "Audio is a service and should not be added to a page with visible controls.
+    #  Add it to page.services to retain the reference to it."
     # ==========================================
     from audio_manager import AudioManager
     
     # 初始化音频管理器
     audio_manager = AudioManager(page)
+    
+    # 将所有音频实例注册到 page.services
+    all_audios = audio_manager.get_controls()
+    page.services.extend(all_audios)
+    page.update()
     
     # 通过 page.data 共享给各个 view
     page.data = page.data or {}

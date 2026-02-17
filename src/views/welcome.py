@@ -26,9 +26,6 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
     # 异步启动背景音乐
     page.run_task(start_bgm)
     
-    # 🎵 获取音频控件列表（必须作为 View 的一级子元素）
-    audio_controls = audio_manager.get_controls() if audio_manager else []
-    
     # --- 1. 数据准备 ---
     first_cover = topics[0].cover_image_path if topics else ""
     
@@ -483,13 +480,11 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         expand=True,
     )
 
-    # 返回视图，音频控件必须作为 View 的一级子元素
+    # 返回视图，只包含 UI 组件
+    # 🎵 音频控件已在 main.py 中注册到 page.services，无需添加到 View.controls
     return ft.View(
         route="/",
-        controls=[
-            *audio_controls,  # 🎵 音频控件作为一级子元素
-            root              # 原有的界面 UI
-        ],
+        controls=[root],
         padding=0,
         bgcolor=ft.Colors.BLACK,
     )
