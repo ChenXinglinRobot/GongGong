@@ -89,11 +89,26 @@ class AudioManager:
             print(f"背景音乐播放失败: {e}")
     
     async def stop_bgm(self):
-        """停止背景音乐"""
+        """停止背景音乐 - 优化后台音频释放"""
         try:
+            # 先暂停音频
             await self.bgm.pause()
+            # 对于循环播放的音频，需要重置播放位置以确保彻底停止
+            # 注意：flet_audio 的 release() 方法可能不可用，我们使用 seek(0) 来重置
+            await self.bgm.seek(0)
+            print("背景音乐已停止并重置")
         except Exception as e:
             print(f"背景音乐停止失败: {e}")
+    
+    async def release_all(self):
+        """释放所有音频资源 - 用于应用进入后台时"""
+        try:
+            # 停止所有音频
+            await self.bgm.pause()
+            await self.bgm.seek(0)
+            print("所有音频资源已释放")
+        except Exception as e:
+            print(f"音频资源释放失败: {e}")
     
     async def play_welcome_confirm(self):
         """播放欢迎确认音效"""

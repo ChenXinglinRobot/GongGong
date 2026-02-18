@@ -9,10 +9,10 @@ authors = [
 ]
 # 核心依赖 (Build 时会自动安装这些)
 dependencies = [
-    "flet>=0.80.5",
-    "flet-video>=0.80.5",
-    "flet-permission-handler>=0.80.5",
-    "flet-audio>=0.80.5",
+    "flet==0.80.5",  # ✅ 安全：永远固定在这个好用的版本
+    "flet-video==0.80.5",
+    "flet-permission-handler==0.80.5",
+    "flet-audio==0.80.5",
 ]
 
 # --- Flet 配置核心部分 ---

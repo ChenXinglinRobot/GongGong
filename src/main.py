@@ -63,18 +63,13 @@ async def main(page: ft.Page):
         topics = data_loader.load_topics(stored_path)
         topic_map = {t.id: t for t in topics}
     
-    # 3. 路由变换逻辑
+    # 3. 路由变换逻辑 - 修复 Android 返回键导航问题
     async def route_change(e):
-        # 🔥 步骤 A: 只清理视图，保留全局 overlay 组件
-        page.views.clear()
-        
-        # 🔥 步骤 B: 根据路由控制 BGM
-        # 从播放器页面离开时停止 BGM，进入欢迎页面时 BGM 会自动播放
         try:
             current_route = e.route
         except AttributeError:
             current_route = page.route
-            
+        
         # 🎵 BGM 控制逻辑
         if current_route.startswith("/play/"):
             # 进入播放器页面时停止 BGM
@@ -88,9 +83,13 @@ async def main(page: ft.Page):
                 print("进入设置页面，停止背景音乐")
         # 进入欢迎页面（/）时 BGM 会自动在 welcome.py 中播放
         # 进入开屏页面（/splash）时不需要处理 BGM
-            
-        # 路由分发
+        
+        # 路由分发 - 采用栈式导航策略
+        # 1. 如果是根路由（/splash, /, /setup），清空栈并添加新页面
+        # 2. 如果是子路由（/play/...），添加到栈顶
         if current_route == "/splash":
+            # 清空视图栈，只保留开屏页面
+            page.views.clear()
             # 获取splash视图和组件引用
             splash_view, image, text = views.get_splash_view(page)
             page.views.append(splash_view)
@@ -100,6 +99,8 @@ async def main(page: ft.Page):
             asyncio.create_task(views.start_splash_animation(page, image, text))
             
         elif current_route == "/":
+            # 清空视图栈，只保留欢迎页面
+            page.views.clear()
             if topics:
                 # 定义 on_topic_enter 回调函数，当用户最终确认时，跳转到 /play/{topic.id}
                 async def on_topic_enter(topic):
@@ -116,11 +117,15 @@ async def main(page: ft.Page):
             topic_id = current_route.split("/")[-1]
             selected_topic = topic_map.get(topic_id)
             if selected_topic:
-                page.views.append(views.get_player_view(page, selected_topic))
+                # 检查是否已经在播放器页面（避免重复添加）
+                if len(page.views) == 0 or not page.views[-1].route.startswith("/play/"):
+                    page.views.append(views.get_player_view(page, selected_topic))
             else:
                 await page.push_route("/")
         
         elif current_route == "/setup":
+            # 清空视图栈，只保留设置页面
+            page.views.clear()
             async def on_setup_success(selected_path: str):
                 nonlocal topics, topic_map
                 topics = data_loader.load_topics(selected_path)
@@ -142,11 +147,39 @@ async def main(page: ft.Page):
         page.update()
 
     async def view_pop(e):
+        """处理 Android 返回键和页面弹出"""
         if len(page.views) > 1:
+            # 弹出栈顶页面
             page.views.pop()
+            # 获取新的栈顶页面
             top_view = page.views[-1]
-            await page.push_route(top_view.route)
+            # 更新路由到新栈顶页面的路由
+            page.route = top_view.route
+            page.update()
+        else:
+            # 如果栈中只有一个页面，应用退出（Android 默认行为）
+            # 这里可以添加确认退出的逻辑，但为了简单起见，我们让应用退出
+            pass
 
+    # 4. 应用生命周期监听 - 修复后台音频播放问题
+    async def on_app_lifecycle_state_change(e):
+        """处理应用生命周期状态变化"""
+        print(f"应用生命周期状态变化: {e.state}")
+        
+        if e.state in [ft.AppLifecycleState.HIDE, ft.AppLifecycleState.PAUSE]:
+            # 应用进入后台，释放所有音频资源
+            if audio_manager:
+                await audio_manager.release_all()
+                print("应用进入后台，释放所有音频资源")
+        elif e.state == ft.AppLifecycleState.RESUME:
+            # 应用回到前台，根据当前路由恢复音频
+            if audio_manager and page.route == "/":
+                # 如果在欢迎页面，恢复播放 BGM
+                await audio_manager.play_bgm()
+                print("应用回到前台，恢复背景音乐")
+    
+    page.on_app_lifecycle_state_change = on_app_lifecycle_state_change
+    
     page.on_route_change = route_change
     page.on_view_pop = view_pop
     # 设置初始路由为/splash
