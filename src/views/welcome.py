@@ -470,6 +470,12 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         right_panel.opacity = 1
         right_panel.scale = 1.0
         page.update()
+        
+        # 🎵 音频焦点修复：点击音效播放后，显式恢复 BGM
+        # 防止 Android 音频焦点被抢占后未自动恢复
+        if audio_manager:
+            await audio_manager.resume_bgm()
+            print("转场动画完成，显式恢复背景音乐")
 
     # --- 7. 组装 ---
     

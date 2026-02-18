@@ -149,6 +149,31 @@ async def main(page: ft.Page):
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop
+    
+    # 生命周期状态变化处理
+    async def handle_lifecycle_change(e):
+        """处理应用生命周期状态变化"""
+        audio_manager = page.data.get("audio_manager")
+        if not audio_manager:
+            return
+            
+        if e.data == "paused":
+            # 应用进入后台，暂停 BGM
+            await audio_manager.pause_bgm()
+            print("应用进入后台，背景音乐已暂停")
+        elif e.data == "resumed":
+            # 应用回到前台，恢复 BGM（仅在允许播放的页面）
+            # 允许播放 BGM 的页面：/（欢迎页）和 /setup（设置页）
+            current_route = page.route
+            if current_route in ["/", "/setup"]:
+                await audio_manager.resume_bgm()
+                print(f"应用回到前台，当前路由 {current_route} 允许播放背景音乐，已恢复")
+            else:
+                print(f"应用回到前台，当前路由 {current_route} 不允许播放背景音乐，跳过恢复")
+    
+    # 绑定生命周期事件处理
+    page.on_app_lifecycle_state_change = handle_lifecycle_change
+    
     # 设置初始路由为/splash
     await page.push_route("/splash")
 

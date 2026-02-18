@@ -63,6 +63,9 @@ class AudioManager:
             autoplay=False,
             release_mode=fta.ReleaseMode.STOP
         )
+        
+        # BGM 状态管理
+        self.is_bgm_enabled = False  # 记录 BGM 是否处于"应该播放"状态
     
     def get_controls(self) -> list:
         """
@@ -83,6 +86,7 @@ class AudioManager:
     async def play_bgm(self):
         """播放背景音乐"""
         try:
+            self.is_bgm_enabled = True
             await self.bgm.play()
             print("背景音乐开始播放")
         except Exception as e:
@@ -91,6 +95,7 @@ class AudioManager:
     async def stop_bgm(self):
         """停止背景音乐"""
         try:
+            self.is_bgm_enabled = False
             await self.bgm.pause()
         except Exception as e:
             print(f"背景音乐停止失败: {e}")
@@ -130,3 +135,22 @@ class AudioManager:
             await self.se_splash.play()
         except Exception as e:
             print(f"开屏音效播放失败: {e}")
+    
+    async def pause_bgm(self):
+        """暂停背景音乐（不改变启用状态）"""
+        try:
+            await self.bgm.pause()
+            print("背景音乐已暂停（系统暂停）")
+        except Exception as e:
+            print(f"背景音乐暂停失败: {e}")
+    
+    async def resume_bgm(self):
+        """恢复背景音乐（仅在启用状态下恢复）"""
+        if self.is_bgm_enabled:
+            try:
+                await self.bgm.resume()
+                print("背景音乐已恢复")
+            except Exception as e:
+                print(f"背景音乐恢复失败: {e}")
+        else:
+            print("背景音乐未启用，跳过恢复")
