@@ -45,6 +45,9 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
         src=first_cover,
         fit=ft.BoxFit.COVER,
         opacity=0.6,
+        width=float("inf"),   # 👈 新增：强制宽度填满可用空间
+        height=float("inf"),  # 👈 新增：强制高度填满可用空间
+        expand=True,          # 👈 新增：让它在 Stack 中完全展开
     )
     
     # 动态模糊层
@@ -71,7 +74,7 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
     welcome_card = ft.Container(
         width=480, height=270,
         alignment=ft.Alignment(0, 0),
-        image=ft.DecorationImage(src=first_cover, fit=ft.BoxFit.COVER) if first_cover else None,
+        image=ft.DecorationImage(src=first_cover, fit=ft.BoxFit.CONTAIN) if first_cover else None,
         border_radius=12,
         shadow=ft.BoxShadow(blur_radius=20, color=ft.Colors.BLACK),
         scale=1.0, opacity=1.0,
@@ -262,7 +265,7 @@ def get_welcome_view(page: ft.Page, topics: List[Topic], on_topic_enter: Callabl
 
         right_image_switcher.content = ft.Container(
             key=f"img_{current_real_topic.id}",
-            image=ft.DecorationImage(src=img_src, fit=ft.BoxFit.COVER),
+            image=ft.DecorationImage(src=img_src, fit=ft.BoxFit.CONTAIN),
             border_radius=16,
             shadow=ft.BoxShadow(blur_radius=15, color=ft.Colors.BLACK_45),
         )
